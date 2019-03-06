@@ -150,13 +150,30 @@ void Id3D12::CommandQueue::ExecuteCommandLists(UINT count, ID3D12CommandList* co
 //riid: The COM ID of the ID3D12CommandAllcocator interface we want to create.
 
 //ppCommandAllocator: Outputs a pointer to the created command allocator.
+
 //HRESULT ID3D12Device::CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE type, REFIID riid, void** ppCommandAllocator)
+
+//--------------------------------------------------
 
 //nodeMask: Set to 0 for single GPU system. Otherwise, the node mask identifies the physical
 //GPU this command list is associated with.
+
+//type: The type of command list: either D3D12_COMMAND_LIST_TYPE_DIRECT or D3D12_COMMAND_LIST_TYPE_BUNDLE
+
+//pCommandAllocator: The allocator to be associated with the created command list.
+//The command allocator type must match the command list type.
+
+//pInitialState: Specifies the initial pipeline state of the command list. 
+//This can be null for bundles, and in the special case where a command list is executed
+//for initialization purposes and does not contain any draw commands.
+
+//riid: The COM ID of the ID3D12CommandList interface we want to create.
+
+//ppCommandList: Outputs a pointer to the create command list
+
 //HRESULT ID3D12Device::CreateCommandList(UINT nodeMask, D3D12_COMMAND_lIST_TYPE type, ID3D12CommandAllocator * pCommandAllocator, REFIID riid, void** ppCommandList);
 
-
+//You can use the ID3D12Device::GetNodeCount method to query the number of GPU adapter nodes on the system.
 
 using namespace DirectX;
 
@@ -329,32 +346,434 @@ private:
 		//support, and create all other Direct3D interface objects like resourcees, views and command lists. The device can be created with the following function:
 		//pAdapter: specifies the display adapter we want the created device to represent.
 		//Specifyinh null fof this parameter uses the primary display adapter. 
-		HRESULT hr = D3D12CreateDevice(m_Adapters.front().Get(), D3D_FEATURE_LEVEL_12_0, __uuidof(ID3D12Device), reinterpret_cast<void**>(m_pDevice.ReleaseAndGetAddressOf()));
+
+		//Enable debug layer
+#if defined(DEBUG) || defined (_DEBUG)
+		ComPtr<ID3D12Debug> debugController;
+		D3D12GetDebugInterface(IID_PPV_ARGS(debugController.GetAddressOf()));
+		debugController->EnableDebugLayer();
+#endif
+
+		//pAdapter: Specifies the display adapter we want the created device to represent.
+		//Specifying null for this parameter uses the primary display adapter.
+
+		//MinimumFeatureLevel: the minimum feature level our application requires support for.
+		//device creation will fail if the adapter does not support this feature level.
+		
+		//riid: the COM ID of the ID3D12Device interface we want to create.
+
+		//ppDevice: returns the created device.
+		HRESULT hr = D3D12CreateDevice(m_Adapters.front().Get(), D3D_FEATURE_LEVEL_12_0, IID_PPV_ARGS(m_pDevice.ReleaseAndGetAddressOf()));
+
+		/*
+		Fall back to warp adapter
+		if (FAILED(hr))
+		{
+			//To enumerate over WARP adapters we need to make an IDXGIFactory4 object
+			ComPtr<IDXGIFactory4> pFactory;
+			CreateDXGIFactory1(IID_PPV_ARGS(pFactory.GetAddressOf())
+
+			ComPtr<IDXGIAdapter> pWarpAdapter;
+			m_dxgiFactory->EnumWarmAdapter(IID_PPV_ARGS(pWarpAdapter.GetAddressOf());
+
+			hr = D3D12CreateDevice(pWarpAdapter.Get(), D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(m_Device.ReleaseAndGetAddressOf()));
+		}
+		*/
 
 		if (FAILED(hr))
 			return hr;
 
-		DXGI_SWAP_CHAIN_DESC swapChainDesc = {};
-		swapChainDesc.BufferCount = 1;
-		swapChainDesc.BufferDesc.Width = WIDTH;
-		swapChainDesc.BufferDesc.Height = HEIGHT;
-		swapChainDesc.BufferDesc.RefreshRate.Numerator = 1;
-		swapChainDesc.BufferDesc.RefreshRate.Denominator = 60;
-		swapChainDesc.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-		swapChainDesc.BufferDesc.ScanlineOrdering = DXGI_MODE_SCANLINE_ORDER_UNSPECIFIED;
-		swapChainDesc.BufferDesc.Scaling = DXGI_MODE_SCALING_UNSPECIFIED;
-		swapChainDesc.SampleDesc.Count = 1;
-		swapChainDesc.SampleDesc.Quality = 0;
-		swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT | DXGI_USAGE_SHADER_INPUT;
-		swapChainDesc.OutputWindow = m_WindowHandle;
-		swapChainDesc.Windowed = true;
-		swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
-		swapChainDesc.Flags = 0;
+		//Create the fence and descriptor sizes
+		//After we have created our device, we can create our object for CPU/GPU synchronizatino.
+		//In addtion, once we get to working with descriptors, we are going to need to know their size.
+		//Descriptor sizes can vary across GPUs so we need to query this informatino. We cache the descriptor
+		//sizes so that it is available when we need it for various descriptor types.
+		hr = m_pDevice->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(m_pFence.ReleaseAndGetAddressOf()));
+		
+		if (FAILED(hr))
+			return hr;
 
+		m_RtvDescriptorSize = m_pDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+		m_DsvDescriptorSize = m_pDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
+		m_CbvSrvDescriptorSize = m_pDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
+		//Check 4x MSAA Quality Support
+		D3D12_FEATURE_DATA_MULTISAMPLE_QUALITY_LEVELS msQualityLevels;
+		msQualityLevels.Format = m_BackBufferFormat;
+		msQualityLevels.SampleCount = 4;
+		msQualityLevels.Flags = D3D12_MULTISAMPLE_QUALITY_LEVELS_FLAG_NONE;
+		msQualityLevels.NumQualityLevels = 0;
 
+		hr = m_pDevice->CheckFeatureSupport(D3D12_FEATURE_MULTISAMPLE_QUALITY_LEVELS, &msQualityLevels, sizeof(msQualityLevels));
+
+		if (FAILED(hr))
+			return hr;
+
+		m_4xMsaaQuality = msQualityLevels.NumQualityLevels;
+		assert(m_4xMsaaQuality > 0 && "Unexpected MSAA quality level");
+
+		//Create command queue and command list.
+		CreateCommandObjects();
+
+		//Create swapchain
+		CreateSwapChain();
+
+		//Create descriptor heaps
+		CreateRtvAndDsvDescriptorHeaps();
+
+		//Create render target view
+		//First get buffer resources that are stored in the swapchain
+		//Buffer: an index identifying the particular back buffer we want to get (in case there's more than one.)
+		//riid: The COM ID of the ID#D12Resource interface we want to obtain a pointer to
+		//ppSurface: Returns a pointer to an ID3D12Resource that represents the back buffer.
+		//HRESULT IDXGISwapChain::GetBuffer(UINT buffer, REFIID riid, void** ppSurface);
+
+		//To create the render target view, we use the ID3D12Device::CreateRenderTargetView method:
+		//ID3D12Resource* pResource: Specifies the resource that will be used as the render target.
+		//pDesc: A pointer to a D3D12_RENDER_TARGET_VIEW_DESC. ammong other things, this structure describes the
+		//data type (format) of the elements in the resource.
+		//If the resource was created with a typed format, then this parameter can be null, which indicates
+		//to create a view to the first mipmap level of the resource (back buffer only has 1) with the format the
+		//resource was created with.
+		//DestDescriptor: Handle to the descriptor that will store the created render target view
+		//ID3D12Device::CreateRenderTargetView(ID3D12Resource* pResource, const D3D12_RENDER_TARGET_VIEW_DESC *pDesc, D3D12_CPU_DESCRIPTOR_HANDLE DescDescriptor);
+		
+		
 
 		return hr;
+	}
+
+	HRESULT CreateCommandObjects()
+	{
+		D3D12_COMMAND_QUEUE_DESC queueDesc = {};
+		queueDesc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
+		queueDesc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
+		
+		HRESULT hr = m_pDevice->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(m_pCommandQueue.ReleaseAndGetAddressOf()));
+
+		if (FAILED(hr))
+			return hr;
+
+		hr = m_pDevice->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(m_DirectCmdListAlloc.ReleaseAndGetAddressOf()));
+
+		if (FAILED(hr))
+			return hr;
+
+		//We specify null for the pipeline state object parameter.
+		hr = m_pDevice->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, m_DirectCmdListAlloc.Get(), nullptr, IID_PPV_ARGS(m_CommandList.ReleaseAndGetAddressOf()));
+		
+		if (FAILED(hr))
+			return hr;
+
+		//Start off in a closed state.
+		//This is because the first time we refer to the command list we will reset it, 
+		//and it needs to be closed before calling Reset.
+		m_CommandList->Close();
+	}
+
+	HRESULT CreateSwapChain()
+	{
+		//Release the old swap chain before creating a new one
+		m_pSwapChain.Reset();
+
+
+		//Buffer desc: This structure describes the properties of the back buffer we want to create
+		//The main properties we are concerned with are width, height and pixel format.
+
+		//SampleDesc: The number of multisamples and quality level.
+
+		//BufferUsage: specify DXGI_USAGE_RENDER_TARGET_OUTPUT since we are going to be rendering to the back buffer.
+
+		//BufferCount: the number of buffers to use in the swap chain. specify 2 for double buffering.
+
+		//OutputWindow: a handle to the window we are rendering into
+
+		//Windowed: specify true to run in windowed mode or false for full screen mode.
+
+		//SwapEffect: specify DXGI_SWAP_EFFECT_FLIP_DISCARD.
+
+		//Flags: optional flags. if you specify DXGI_SWAP_CHAIN_FLAH_ALLOW_MODE_SWITCH, 
+		//then when the applicatoin is switching to full-screen mode, it will choose a display mode that best
+		//matches the current application window dimensions. If this flag is not specified, then when the application
+		//is switching to full-screen mode, it will use the current desktip display mode
+		DXGI_SWAP_CHAIN_DESC sd;
+		sd.BufferDesc.Width = WIDTH;
+		sd.BufferDesc.Height = HEIGHT;
+		sd.BufferDesc.RefreshRate.Numerator = 60;
+		sd.BufferDesc.RefreshRate.Denominator = 1;
+		sd.BufferDesc.Format = m_BackBufferFormat;
+		sd.BufferDesc.ScanlineOrdering = DXGI_MODE_SCANLINE_ORDER_UNSPECIFIED;
+		sd.BufferDesc.Scaling = DXGI_MODE_SCALING_UNSPECIFIED;
+		sd.SampleDesc.Count = m_4xMsaaEnabled ? 4 : 1;
+		sd.SampleDesc.Quality = m_4xMsaaEnabled? (m_4xMsaaQuality - 1) : 0;
+		sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT; // we're rendering to this buffer
+		sd.BufferCount = m_SwapChainBufferCount; //Double buffering
+		sd.OutputWindow = m_WindowHandle;
+		sd.Windowed = true;
+		sd.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+		sd.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
+		//Note: swap chain uses queue to perform flush
+		
+		HRESULT hr = m_pDxgiFactory->CreateSwapChain(m_pCommandQueue.Get(), &sd, m_pSwapChain.ReleaseAndGetAddressOf());
+		
+		return hr;
+	}
+
+	HRESULT CreateRtvAndDsvDescriptorHeaps()
+	{
+		HRESULT hr = S_OK;
+
+		D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc;
+		rtvHeapDesc.NumDescriptors = m_SwapChainBufferCount;
+		rtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
+		rtvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+		rtvHeapDesc.NodeMask = 0;
+		hr = m_pDevice->CreateDescriptorHeap(&rtvHeapDesc, IID_PPV_ARGS(m_RtvHeap.ReleaseAndGetAddressOf()));
+
+		if (FAILED(hr))
+			return hr;
+
+
+		D3D12_DESCRIPTOR_HEAP_DESC dsvHeapDesc;
+		dsvHeapDesc.NumDescriptors = 1;
+		dsvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
+		dsvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+		dsvHeapDesc.NodeMask = 0;
+		m_pDevice->CreateDescriptorHeap(&dsvHeapDesc, IID_PPV_ARGS(m_DsvHeap.ReleaseAndGetAddressOf()));
+
+		if (FAILED(hr))
+			return hr;
+
+		//After we create the heaps, we need to be able to access the descriptors they store.
+		//Our application references descriptor through handles.
+		//A handle to the first descriptor in a heap is obtained with the ID3D12DescriptorHeap::GetCPUDescriptorHandleForHeapStart method.
+		CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHeapHandle(m_RtvHeap->GetCPUDescriptorHandleForHeapStart());
+		for (UINT i = 0; i < m_SwapChainBufferCount; ++i)
+		{
+			//Get the ith buffer in the swapchain
+			HRESULT hr = m_pSwapChain->GetBuffer(i, IID_PPV_ARGS(m_SwapChainBuffers[i].GetAddressOf()));
+
+			if (FAILED(hr))
+				return hr;
+
+			//Create RTV to it
+			m_pDevice->CreateRenderTargetView(m_SwapChainBuffers[i].Get(), nullptr, rtvHeapHandle);
+
+			//Next entry in heap
+			rtvHeapHandle.Offset(1, m_RtvDescriptorSize);
+		}
+
+		//We now need to create the depth/stencil buffer.
+		//D3D12_RESOURCE_DESC:
+		//{
+		//	Dimension: Dimension of the resource, which is one of the following enunmerated types:
+		//	D3D12_RESOURCE_DIMENSTION_UNKOWN = 0
+		//	D3D12_RESOURCE_DIMENSTION_BUFFER = 1
+		//	D3D12_RESOURCE_DIMENSTION_TEXTURE1D = 2
+		//	D3D12_rESOURCE_DIMENSTION_TEXTURE2D = 3
+		//	D3D12_RESOURCE_DIMENSTION_TEXTURE3D = 4
+		//
+		//	Width: the width of the texture in texels, for buffer resources, this is the number of bytes in the buffer.
+		//	Height: the height of the texture in texels.
+		//	DepthOrArraySize: the depth of the texture in texels, or the texture array size (for 1D and 2D textures).
+		//	Note that you cannot have a texture array of 3D textures.
+		//
+		//	MipLevels: the number of mipmap levels.
+		//	Format: A member of the DXGI_FORMAT enumerated type specifying the format of the texels.
+		//	SampleDesc: The number of multisamples and quality level. Recall that 4X MSAA uses a back buffer
+		//	and depth buffer 4X bigger than the screen resolution, in order to store color and depth/stencil information
+		//	per subpixel. Therefore, the multisampling settings used for the depth/stencil buffer must match the settings used
+		//	for the render target.
+		//
+		//	Layout: a member of the D3D12_TEXTURE_LAYOUT enumerated type that specifies the texture layout.
+		//	for now, we do not have to worry about the layout and can specify D3D12TEXTURE_LAYOUT_UNKNOWN.
+		//
+		//	MiscFlags: Miscellaneos resource flags. For a depth/stencil buffer,
+		//	specify D3D12_RESOURCE_MISC_DEPTH_STENCIL
+		//}
+
+		//GPU resources live in heaps, which are essentially block of GPU memory with certain properties.
+		//The ID3D12Device::CreateCommittedResource method creates and commits a resource to a particular heap
+		//with the properties we specify.
+
+		//pHeapProperties: The properties of the heap we want to commit the resource to.
+		//Some of these properties are for advanced usage.
+		//D3D12_HEAP_TYPE
+		//{
+		//	D3D12_HEAP_TYPE_DEFAULT: Default heap. This is where we commit resources where we need to upload
+		//data from the CPU to the GPU resource.
+		//	D3D12_HEAP_TYPE_UPLOAD: Upload heap. This is where we commit resources where we need to upload data from CPU to the GPU resource.
+		//	D3D12_HEA_TYPE_READBACK: Read-back heap. this is where we commit resources that need to be read by the CPU.
+		//	D3D12_HEAP_TYPE_CUSTOM: For advanced usage scenarios --see the MSDN documentation for more information.
+		//}
+
+		//HeapMiscFlags: Additional flags about the heap we want to commit the resource to. this will usually be D3D12_HEAP_MISC_NONE
+		//pResourceDesc: Pointer to a D3D12_RESOURCE_DESC instance describing the resource we want to create.
+
+		//pResourceDesc: Pointer to a D3D12_RESOURCE_DESC instance describing the resource we want to create.
+
+		//InitialResourceState: Set the initial state of the resource when it is created.
+		//For the depth/stencil buffer, the initial state will be D3D12_RESOURCE_USAGE_INITIAL, and then we will
+		//want to transition it to the D3D12_RESOURCE_USAGE_DEPTH so it can be bound to the pipeline as a depth/stencil view.
+
+		//pOptimizedClearValue: Pointer to a D3D12_CLEAR_VALUE object that describes an optimized value for clearing resources.
+		//Clear calls that match the optimized clear value can potentially be faster than clear calls that do not match
+		//the optimized clear value. Null can also be specified for this value to not specify an optimized clear value.
+		//D3D12_CLEAR_VALUE
+		//{
+		//	DXGI_FORMAT format;
+		//	union
+		//	{
+		//		FLOAT Color[4];
+		//		D3D12_DEPTH_STENCIL_VALUE DepthStencil;
+		//	};
+		//};
+		//riidResource: The COM ID of the ID3D12Resource interface we want to obtain a pointer to.
+		//ppvResource: Return pointer to an ID3D12Resource that represents the newly created resource.
+		//Note: Resources should be placed in the default heap for optimal performance.
+		//Only use upload or read back heaps if you need those features.
+
+		D3D12_RESOURCE_DESC depthStencilDesc;
+		depthStencilDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+		depthStencilDesc.Alignment = 0;
+		depthStencilDesc.Width = WIDTH;
+		depthStencilDesc.Height = HEIGHT;
+		depthStencilDesc.DepthOrArraySize = 1;
+		depthStencilDesc.MipLevels = 1;
+		depthStencilDesc.Format = m_DepthStencilFormat;
+		depthStencilDesc.SampleDesc.Count = m_4xMsaaEnabled ? 4 : 1;
+		depthStencilDesc.SampleDesc.Quality = m_4xMsaaEnabled ? (m_4xMsaaQuality - 1) : 0;
+		depthStencilDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+		depthStencilDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
+
+		D3D12_CLEAR_VALUE optClear;
+		optClear.Format = m_DepthStencilFormat;
+		optClear.DepthStencil.Depth = 1.0f;
+		optClear.DepthStencil.Stencil = 0;
+		hr = m_pDevice->CreateCommittedResource(&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT), D3D12_HEAP_FLAG_NONE, &depthStencilDesc, D3D12_RESOURCE_STATE_COMMON, &optClear, IID_PPV_ARGS(m_DepthStencilBuffer.ReleaseAndGetAddressOf()));
+
+		if (FAILED(hr))
+			return hr;
+
+		//Create descriptor to mip level 0 of entire resource using the format of the resource.
+		m_pDevice->CreateDepthStencilView(m_DepthStencilBuffer.Get(), nullptr, GetDepthStencilView());
+
+		//Transition the resource from its initial state to be used as a depth buffer
+		m_CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_DepthStencilBuffer.Get(), D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_DEPTH_WRITE));
+
+		//note that we use the CD3DX12_HEAP_PROPERTIES helper constructor to create the heap properties strucutre,
+		//which is implemented like so:
+		//explicit cd3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE type, UINT creationNodeMask = 1, UINT nodeMask = 1)
+		//{
+		//	Type type;
+		//	CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
+		//	MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
+		//	CreationnodeMask = creationNodeMask
+		// VisiblenodeMask = nodeMask
+		//}
+
+		//The second parameter of CreateDepthStencilView is a pointer to a D3D12_DEPTH_STENCIL_VIEW_DESC.
+		//Among other things, this structure describes the data type (format) of the elements in the resource.
+		//If the resource was created with a typed format, then this parameter can be null.
+		
+		//Setting the viewport
+		//struct D3D12_VIEWPORT
+		//{
+		//	FLOAT TopLeftX;
+		//	FLOAT TopLeftY;
+		//	FLOAT Width;
+		//	FLOAT Height;
+		//	FLOAT MinDepth;
+		//	FLOAT MaxDepth;
+		//};
+
+		//the first four data members define the viewport rectangle relative to the back buffer.
+		//In Direct3D, depth values are stored in the depth buffer in a normalized range of 0 to -1.
+		//Being able to transform the depth range can be used to achieve certain effects.
+		//for example, you could set MinDepth = 0 and MaxDepth - 0, so that all objects drawn with this viewport
+		//will have depth values of 0 and appear in front of all other objects in the scene.
+		//However, usually MinDepth is set to 0 and MaxDepth set to 1 so that the depth values are not modified.
+		D3D12_VIEWPORT vp;
+		vp.TopLeftX = 0.0f;
+		vp.TopLeftY = 0.0f;
+		vp.Width = static_cast<float>(WIDTH);
+		vp.Height = static_cast<float>(HEIGHT);
+		vp.MinDepth = 0;
+		vp.MaxDepth = 1;
+
+		m_CommandList->RSSetViewports(1, &vp);
+		//Note: you cannot specify multiple viewports to the same render target.
+		//Multiple viewports are used for advanced techniques that render to multiple render targets at the same time.
+
+		//Note: the viewport needs to be reset whenever the command list is reset.
+
+		//You could use the viewport to implement split screens for 2 player game modes, for example.
+		//You would create 2 viewports, one for the top and one for the bottom screen.
+		//Then you would draw the 3D scene from the perspective of player 1 into the top part of the screen
+		//and the perspective of player 2 in the bottom part of the screen.
+
+		//Set the scissor rectangles
+		//We cand fine a scissor rectangle relative to the back buffer such that pixels outside this rectangle are culled.
+		//This can be used for optimizations. For example, if we know an area of the screen will contain a rectangular UI
+		//element on top of everything, we do not need to process the pixels of the 3D world that the UI element would obscure.
+
+		//A scissor rectangle is defined by a D3D12_RECT structure which is typedefed to the following structure:
+		//typedef struct tagRECT
+		//{
+		//	LONG left
+		//	LONG top
+		//	LONG right
+		//	LONG bottom
+		//} RECT;
+
+		//we set the scissor rectangle with Direct3D with the ID3D12CommandList::RSSetScissorRects method
+		m_ScissorsRect = { 0, 0, WIDTH / 2, HEIGHT / 2 };
+		m_CommandList->RSSetScissorRects(1, &m_ScissorsRect);
+		
+		//Note: you cannot specify multiple scissor rectangles on the same render target.
+		//Multiple scissor rectangle are used for advanced techniques that render to multiple
+		//render targets at the same time.
+		
+		//Note: The scissors rectangles need to be reset whenever the command list is reset.
+
+		//Timing and animation
+		
+		//The perfromance timer measure time in units called counts. We obtain the current time value,
+		//measured in counts, of the performance timer with the QueryPerformanceCounter function.
+		__int64 currTime;
+		QueryPerformanceCounter((LARGE_INTEGER*)&currTime);
+
+		//To get the frequency (counts per second) of the performance timer, we use the QueryPerformanceFrequency function
+		__int64 countsPerSec;
+		QueryPerformanceFrequency((LARGE_INTEGER*)&countsPerSec);
+
+		m_SecondsPerCount = 1.0 / (double)countsPerSec;
+
+		//So in the future to get the time elapsed:
+		//valueInSecs = valueInCounts * m_SecondsPerCount;
+
+		/*
+		MSDN has the following remark about QueryPerformanceCounter:
+		“On a multiprocessor computer, it should not matter which processor is called.
+		However, you can get different results on different processors due to bugs in the
+		basic input/output system (BIOS) or the hardware abstraction layer (HAL).” You
+		can use the SetThreadAffinityMask function so that the main application
+		thread does not get switch to another processor.
+		*/
+		
+	}
+	D3D12_CPU_DESCRIPTOR_HANDLE GetCurrentBackBufferView() const
+	{
+		//CD3DX12 constructor to offset to the RTV of the current backbuffer
+		//First parameter: Handle start
+		//Second parameter: Index to offset
+		//Third parameter: byte size of descriptor
+		return CD3DX12_CPU_DESCRIPTOR_HANDLE(m_RtvHeap->GetCPUDescriptorHandleForHeapStart(), m_CurrentBackBuffer, m_RtvDescriptorSize);
+	}
+
+	D3D12_CPU_DESCRIPTOR_HANDLE GetDepthStencilView() const
+	{
+		return m_DsvHeap->GetCPUDescriptorHandleForHeapStart();
 	}
 
 	static LRESULT CALLBACK WindowProcedureStatic(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
@@ -433,7 +852,7 @@ private:
 		};
 
 		D3D12_FEATURE_DATA_FEATURE_LEVELS featureLevelsInfo;
-		featureLevelsInfo.NumFeatureLevels = featureLevels.size();
+		featureLevelsInfo.NumFeatureLevels = static_cast<UINT>(featureLevels.size());
 		featureLevelsInfo.pFeatureLevelsRequested = featureLevels.data();
 
 		//For the input we specify the number of elements in a feature level array, and a pointer
@@ -457,9 +876,41 @@ private:
 
 	HWND m_WindowHandle;
 	ComPtr<ID3D12Device> m_pDevice;
+	ComPtr<ID3D12Fence> m_pFence;
+	UINT m_RtvDescriptorSize;
+	UINT m_DsvDescriptorSize;
+	UINT m_CbvSrvDescriptorSize;
+	UINT m_4xMsaaQuality;
+	bool m_4xMsaaEnabled = false;
+	DXGI_FORMAT m_BackBufferFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
+	DXGI_FORMAT m_DepthStencilFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
+	ComPtr<ID3D12CommandQueue> m_pCommandQueue;
+	ComPtr<ID3D12CommandAllocator> m_DirectCmdListAlloc;
+	ComPtr<ID3D12GraphicsCommandList> m_CommandList;
+	ComPtr<IDXGISwapChain> m_pSwapChain;
+	static const uint32_t m_SwapChainBufferCount = 2;
+	int m_CurrentBackBuffer = 0;
+	//We need to create the descriptor heaps to store the descriptors/views out application needs.
+	//A descriptor heap is represented by the ID3D12DescriptorHeap interface.
+	//A heap is created with the ID3D12Device::CreateDescriptorHeap method.
+	ComPtr<ID3D12DescriptorHeap> m_RtvHeap; //Render taget views
+	ComPtr<ID3D12DescriptorHeap> m_DsvHeap; //Depth stencil view
+	std::array<ComPtr<ID3D12Resource>, m_SwapChainBufferCount> m_SwapChainBuffers;
+	ComPtr<ID3D12Resource> m_DepthStencilBuffer;
+	D3D12_RECT m_ScissorsRect;
+	double m_SecondsPerCount;
+
+
+
 
 	const int WIDTH = 1024;
 	const int HEIGHT = 720;
+
+
+
+
+
+
 };
     
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int showCmd)
