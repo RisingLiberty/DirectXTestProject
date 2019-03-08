@@ -188,6 +188,7 @@ using namespace DirectX;
 #include <cassert>
 #include <array>
 
+#include "GameTimer.h"
 
 //Because Direct X is a Windows-only api we can use Windows-only methods
 class HelloDirectX
@@ -201,17 +202,46 @@ public:
 
 	int MainLoop()
 	{
+		MSG msg = { 0 };
+		
+		m_GameTimer.Reset();
 
+		while (msg.message != WM_QUIT)
+		{
+			//if there are Window messages then process them.
+			if (PeekMessage(&msg, 0, 0, 0, PM_REMOVE))
+			{
+				TranslateMessage(&msg);
+				DispatchMessage(&msg);
+			}
 
-		return 0;
+			//Otherwise, do application stuff
+			else
+			{
+				m_GameTimer.Tick();
+
+				if (!m_IsPaused)
+				{
+					CalculateFrameStats();
+					
+					
+				}
+				else
+				{
+					Sleep(100);
+				}
+			}
+		}
+
+		return (int)msg.wParam;
 	}
 
 private:
 	void Initialize()
 	{
 		InitializeAdapterAndOutput();
-		//InitializeWindow();
-		//InitializeD3D();
+		InitializeWindow();
+		InitializeD3D();
 	}
 
 	HRESULT InitializeAdapterAndOutput()
@@ -313,17 +343,20 @@ private:
 		int x = outputDesc.DesktopCoordinates.left + ((outputDesc.DesktopCoordinates.right - outputDesc.DesktopCoordinates.left));
 		int y = (int)((outputDesc.DesktopCoordinates.bottom - outputDesc.DesktopCoordinates.top) * 0.5f - winHeight * 0.5f);
 
+		std::wstring longWindowClassName = std::wstring(windowClassName.begin(), windowClassName.end());
+
 		//Now let's assign the window handle
-		m_WindowHandle = CreateWindowA(
-			windowClassName.c_str(), 
-			windowClassName.c_str(),
-			WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU,
-			x,
-			y,
+		m_WindowHandle = CreateWindowExW(
+			0.0,
+			longWindowClassName.c_str(),
+			longWindowClassName.c_str(),
+			WS_OVERLAPPED,
+			CW_USEDEFAULT,
+			CW_USEDEFAULT,
 			winWidth,
 			winHeight,
-			NULL,
-			nullptr,
+			NULL, //no parent window
+			nullptr, //not suing menuss
 			m_hInstance,
 			this);
 
@@ -771,96 +804,156 @@ private:
 		return CD3DX12_CPU_DESCRIPTOR_HANDLE(m_RtvHeap->GetCPUDescriptorHandleForHeapStart(), m_CurrentBackBuffer, m_RtvDescriptorSize);
 	}
 
-	D3D12_CPU_DESCRIPTOR_HANDLE GetDepthStencilView() const
+D3D12_CPU_DESCRIPTOR_HANDLE GetDepthStencilView() const
+{
+	return m_DsvHeap->GetCPUDescriptorHandleForHeapStart();
+}
+
+static LRESULT CALLBACK WindowProcedureStatic(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
+{
+	if (message == WM_CREATE)
 	{
-		return m_DsvHeap->GetCPUDescriptorHandleForHeapStart();
+		LPCREATESTRUCT pCs = reinterpret_cast<LPCREATESTRUCT>(lParam);
+		SetWindowLongPtrW(hWnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(pCs->lpCreateParams));
+	}
+	else
+	{
+		HelloDirectX* pThis = reinterpret_cast<HelloDirectX*>(GetWindowLongPtrW(hWnd, GWLP_USERDATA));
+		if (pThis)
+		{
+			std::cout << "HelloDirectX cast succeeded" << std::endl;
+			return pThis->WindowProc(hWnd, message, wParam, lParam);
+		}
+		else
+			std::cout << "HelloDirectX cast failed" << std::endl;
 	}
 
-	static LRESULT CALLBACK WindowProcedureStatic(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
+	return DefWindowProc(hWnd, message, wParam, lParam);
+}
+
+LRESULT WindowProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
+{
+	switch (message)
 	{
+	case WM_DESTROY:
+		PostQuitMessage(0);
+		return 0;
+	case WM_ACTIVATE:
+		if (wParam == WA_ACTIVE || wParam == WA_CLICKACTIVE)
+			m_IsPaused = true;
+		else
+			m_IsPaused = false;
+		return 0;
+
+	default:
 		return DefWindowProc(hWnd, message, wParam, lParam);
 	}
 
-	//Possible features we want to check the support of:
-	//D3D12_FEATURE_D3D12_OPTIONS: Checks support for various Direct3D 12 features
-	//D3D12_FEATURE_ARCHITECTURE: Checks support for hardware architecture features.
-	//D3D12_FEATURE_FEATURE_LEVELS: Checks feature level support
-	//D3D12_FEATURE_FORMAT_SUPPORT: Checks feature support for a given texture format.
-	//(e.g. can the fromat be used as a render target, can the format be used with blending).
-	//D3D12_FEATURE_MULTSAMPLE_QUALITY_LEVELS: Checks multisampling feature support.
+}
 
-	//pFeatureSupportData: pointer to a data structure to retrieve the feature support information.
-	//The type of strucuture you use depends on what you specified for the Feature parameter.
-	//D3D12_FEATURE_D3D12_OPTIONS --> D3D12_FEATURE_dATA_D3D12_OPTIONS
-	//D3D12_FEATURE_ARCHITECTURE --> D3D12_FEATURE_DATA_ARCHITECTURE
-	//D3D12_FEATURE_FEATURE_LEVELS --> D3D12_FEATURE_DATA_FEATURE_LEVELS
-	//D3D12_FEATURE_FORMAT_SUPPORT --> D3D12_FEATURE_DATA_FROMAT_SUPPORT
-	//D3D12_FEATURE_MULTISAMPLE_QUALITY_LEVELS --> D3D12_FEATURE_DATA_MULTISAMPLE_QUALITY_LEVELS
-	void CheckFeatureSupport(ID3D12Device* pDevice, D3D12_FEATURE feature, void* pFeatureSupportData, size_t featureSupportDataSize)
+//Possible features we want to check the support of:
+//D3D12_FEATURE_D3D12_OPTIONS: Checks support for various Direct3D 12 features
+//D3D12_FEATURE_ARCHITECTURE: Checks support for hardware architecture features.
+//D3D12_FEATURE_FEATURE_LEVELS: Checks feature level support
+//D3D12_FEATURE_FORMAT_SUPPORT: Checks feature support for a given texture format.
+//(e.g. can the fromat be used as a render target, can the format be used with blending).
+//D3D12_FEATURE_MULTSAMPLE_QUALITY_LEVELS: Checks multisampling feature support.
+
+//pFeatureSupportData: pointer to a data structure to retrieve the feature support information.
+//The type of strucuture you use depends on what you specified for the Feature parameter.
+//D3D12_FEATURE_D3D12_OPTIONS --> D3D12_FEATURE_dATA_D3D12_OPTIONS
+//D3D12_FEATURE_ARCHITECTURE --> D3D12_FEATURE_DATA_ARCHITECTURE
+//D3D12_FEATURE_FEATURE_LEVELS --> D3D12_FEATURE_DATA_FEATURE_LEVELS
+//D3D12_FEATURE_FORMAT_SUPPORT --> D3D12_FEATURE_DATA_FROMAT_SUPPORT
+//D3D12_FEATURE_MULTISAMPLE_QUALITY_LEVELS --> D3D12_FEATURE_DATA_MULTISAMPLE_QUALITY_LEVELS
+void CheckFeatureSupport(ID3D12Device* pDevice, D3D12_FEATURE feature, void* pFeatureSupportData, size_t featureSupportDataSize)
+{
+	HRESULT hr;
+
+	D3D12_FEATURE_DATA_MULTISAMPLE_QUALITY_LEVELS multiSampleQualityLevels;
+	multiSampleQualityLevels.Format = DXGI_FORMAT_R8G8B8A8_UNORM; //Back buffer format
+	multiSampleQualityLevels.SampleCount = 4;
+	multiSampleQualityLevels.Flags = D3D12_MULTISAMPLE_QUALITY_LEVELS_FLAG_NONE;
+	multiSampleQualityLevels.NumQualityLevels = 0;
+
+	//The second parameter is both an input and output parameter. For the input,
+	//we must specify the texture format, sample count and flag we want to query multisampling
+	//support for. The function will then fill out the quality level as the output.
+	//Valid quality levels for a texture format and sample count combination range from zero
+	//to NumQualityLevels-1.
+
+	//The maximum number of samples that can be taken per pixel is defined by:
+	//#define D3D11_MAX_MULTISAMPLE_SAMPLE_COUNT (32)
+	//However a sample count of 4 or 8 is common  in order to keep the performance and
+	//memory cost of multisampling reasonable. If you do not wish to use multisampling,
+	//set the sample count to 1 and the quality level to 0. All Direct3D 11 capable devices
+	//support 4X multisampling for all render target formats.
+
+	//Note: a DXGI_SAMPLE_DESC structure needs to be filled out for both the swapchain buffers
+	//and the depth buffer. Both the back buffer and depth buffer must be created with the 
+	//same multisampling settings.
+
+			//Query the number of quality levels for a given texture format and sample count
+	//using ID3D12Device::CheckFeatureSupport.
+
+	//Direct3D 11 introduces the concept of feature levels, which roughly correspond to various
+	//Direct3D version from version 9 to 11:
+	//D3D_FEATURE_LEVEL_9_1
+	//D3D_FEATURE_LEVEL_9_2
+	//D3D_FEATURE_LEVEL_9_3
+	//D3D_FEATURE_LEVEL_10_0
+	//D3D_FEATURE_LEVEL_10_1
+	//D3D_FEATURE_LEVEL_11_0
+	//D3D_FEATURE_LEVEL_11_1
+	//D3D_FEATURE_LEVEL_12_0
+	//D3D_FEATURE_LEVEL_12_1
+
+	//Feature levels make development easier, once you know the supported feature set,
+	//you know the Direct3D functionality you have at your disposal
+
+	hr = m_pDevice->CheckFeatureSupport(D3D12_FEATURE_MULTISAMPLE_QUALITY_LEVELS, &multiSampleQualityLevels, sizeof(multiSampleQualityLevels));
+
+	//Check feature levels
+	std::array<D3D_FEATURE_LEVEL, 3> featureLevels =
 	{
-		HRESULT hr;
+		D3D_FEATURE_LEVEL_12_0, //First check D3D 12
+		D3D_FEATURE_LEVEL_11_0, //next, check D3D 11
+		D3D_FEATURE_LEVEL_10_0  //finally, check D3D 10
+	};
 
-		D3D12_FEATURE_DATA_MULTISAMPLE_QUALITY_LEVELS multiSampleQualityLevels;
-		multiSampleQualityLevels.Format = DXGI_FORMAT_R8G8B8A8_UNORM; //Back buffer format
-		multiSampleQualityLevels.SampleCount = 4;
-		multiSampleQualityLevels.Flags = D3D12_MULTISAMPLE_QUALITY_LEVELS_FLAG_NONE;
-		multiSampleQualityLevels.NumQualityLevels = 0;
+	D3D12_FEATURE_DATA_FEATURE_LEVELS featureLevelsInfo;
+	featureLevelsInfo.NumFeatureLevels = static_cast<UINT>(featureLevels.size());
+	featureLevelsInfo.pFeatureLevelsRequested = featureLevels.data();
 
-		//The second parameter is both an input and output parameter. For the input,
-		//we must specify the texture format, sample count and flag we want to query multisampling
-		//support for. The function will then fill out the quality level as the output.
-		//Valid quality levels for a texture format and sample count combination range from zero
-		//to NumQualityLevels-1.
+	//For the input we specify the number of elements in a feature level array, and a pointer
+	//to a feature level array which contains a list of feature levels we want to check hardware support for.
+	//The functoin outputs the maximum suppoerted feature level through the MaxSupportedFeatureLevel field.
+	hr = pDevice->CheckFeatureSupport(D3D12_FEATURE_FEATURE_LEVELS, &featureLevelsInfo, sizeof(featureLevelsInfo));
 
-		//The maximum number of samples that can be taken per pixel is defined by:
-		//#define D3D11_MAX_MULTISAMPLE_SAMPLE_COUNT (32)
-		//However a sample count of 4 or 8 is common  in order to keep the performance and
-		//memory cost of multisampling reasonable. If you do not wish to use multisampling,
-		//set the sample count to 1 and the quality level to 0. All Direct3D 11 capable devices
-		//support 4X multisampling for all render target formats.
+}
 
-		//Note: a DXGI_SAMPLE_DESC structure needs to be filled out for both the swapchain buffers
-		//and the depth buffer. Both the back buffer and depth buffer must be created with the 
-		//same multisampling settings.
+void CalculateFrameStats()
+{
+	//Calculates fps and time it takes to render 1 frame
+	static int frameCount = 0;
+	static float timeElapsed = 0.0f;
 
-				//Query the number of quality levels for a given texture format and sample count
-		//using ID3D12Device::CheckFeatureSupport.
+	frameCount++;
 
-		//Direct3D 11 introduces the concept of feature levels, which roughly correspond to various
-		//Direct3D version from version 9 to 11:
-		//D3D_FEATURE_LEVEL_9_1
-		//D3D_FEATURE_LEVEL_9_2
-		//D3D_FEATURE_LEVEL_9_3
-		//D3D_FEATURE_LEVEL_10_0
-		//D3D_FEATURE_LEVEL_10_1
-		//D3D_FEATURE_LEVEL_11_0
-		//D3D_FEATURE_LEVEL_11_1
-		//D3D_FEATURE_LEVEL_12_0
-		//D3D_FEATURE_LEVEL_12_1
+	if ((m_GameTimer.GetGameTime() - timeElapsed) >= 1.0f)
+	{
+		float fps = (float)frameCount; //after 1 second, frameCount should hold the number of frames.
+		float mspf = 1000.0f / fps;
 
-		//Feature levels make development easier, once you know the supported feature set,
-		//you know the Direct3D functionality you have at your disposal
+		std::cout << std::fixed;
 
-		hr = m_pDevice->CheckFeatureSupport(D3D12_FEATURE_MULTISAMPLE_QUALITY_LEVELS, &multiSampleQualityLevels, sizeof(multiSampleQualityLevels));
+		std::cout << "fps: " << fps << "\n";
+		std::cout << "mfps: " << mspf << "\n";
 
-		//Check feature levels
-		std::array<D3D_FEATURE_LEVEL, 3> featureLevels =
-		{
-			D3D_FEATURE_LEVEL_12_0, //First check D3D 12
-			D3D_FEATURE_LEVEL_11_0, //next, check D3D 11
-			D3D_FEATURE_LEVEL_10_0  //finally, check D3D 10
-		};
-
-		D3D12_FEATURE_DATA_FEATURE_LEVELS featureLevelsInfo;
-		featureLevelsInfo.NumFeatureLevels = static_cast<UINT>(featureLevels.size());
-		featureLevelsInfo.pFeatureLevelsRequested = featureLevels.data();
-
-		//For the input we specify the number of elements in a feature level array, and a pointer
-		//to a feature level array which contains a list of feature levels we want to check hardware support for.
-		//The functoin outputs the maximum suppoerted feature level through the MaxSupportedFeatureLevel field.
-		hr = pDevice->CheckFeatureSupport(D3D12_FEATURE_FEATURE_LEVELS, &featureLevelsInfo, sizeof(featureLevelsInfo));
-
+		frameCount = 0;
+		timeElapsed += 1.0f;
 	}
+}
 
 private:
 	HINSTANCE m_hInstance;
@@ -899,8 +992,8 @@ private:
 	ComPtr<ID3D12Resource> m_DepthStencilBuffer;
 	D3D12_RECT m_ScissorsRect;
 	double m_SecondsPerCount;
-
-
+	GameTimer m_GameTimer;
+	bool m_IsPaused = false;
 
 
 	const int WIDTH = 1024;
