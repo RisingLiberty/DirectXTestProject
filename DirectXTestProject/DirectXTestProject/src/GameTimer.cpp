@@ -120,5 +120,5 @@ float GameTimer::GetGameTime() const
 
 float GameTimer::GetDeltaTime() const
 {
-	return m_DeltaTime;
+	return (float)m_DeltaTime;
 }
