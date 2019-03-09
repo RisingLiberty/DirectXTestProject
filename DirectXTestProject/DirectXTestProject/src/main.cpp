@@ -1,6 +1,7 @@
 #include <iostream>
 
 #include "D3DApp.h"
+#include "Utils.h"
     
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int showCmd)
 {
@@ -21,9 +22,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 #endif
 	
 	D3DApp app(hInstance);
-	app.Start();
-
-	return 0;
+	return app.Start();
 }
 
 int main()
@@ -33,12 +32,13 @@ int main()
 	{
 		err = WinMain(GetModuleHandle(0), 0, 0, SW_SHOW);
 	}
-	catch (const std::exception& e)
+	catch (DxException& e)
 	{
-		std::wcerr << e.what() << std::endl;
+		std::wcerr << e.ToString() << std::endl;
+		std::wcin.get();
+		return 0;
 	}
 
-	std::wcin.get();
 	return err;
 }
 
