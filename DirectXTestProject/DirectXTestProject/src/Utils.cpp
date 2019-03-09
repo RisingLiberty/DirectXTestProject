@@ -19,7 +19,7 @@ std::wstring DxException::ToString() const
 
 	std::wstringstream ss;
 
-	ss << m_FunctionName << L" failed in " << m_FileName << L"on line " << m_LineNr << L"\n";
+	ss << m_FunctionName << L" failed in " << m_FileName << L" on line " << m_LineNr << L"\n";
 	ss << L"error: " << msg << L"\n";
 
 	return ss.str();
