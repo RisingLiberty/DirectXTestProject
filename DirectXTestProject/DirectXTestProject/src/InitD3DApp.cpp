@@ -31,9 +31,23 @@ void InitD3DApp::Draw()
 	//Set the viewport and scissor rect. This needs to be reset whenever the command list is reset.
 	m_CommandList->RSSetViewports(1, &m_Viewport);
 	m_CommandList->RSSetScissorRects(1, &m_ScissorsRect);
-
-	//Cleaar the back buffer and depth buffer
+	
+	//RenderTargetView: RTV to the resource we want to clear
+	//ColorRGBA: Defines the color to clear the render target to
+	//NumRects: The number of elements in the pRects array.
+	//pRects: an array of D3D12_RECTs that identify rectangle regions on the render target to clear.
+	//This can be nullptr to indicate to clear the entire render target.
+	//Clear the back buffer and depth buffer
 	m_CommandList->ClearRenderTargetView(this->GetCurrentBackBufferView(), DirectX::Colors::LightBlue, 0, nullptr);
+
+	//DepthStenciView: DSV to the depth/stencil buffer to clear
+	//ClearFlags: Flags indicating which part of the depth/stencil buffer to clear.
+	//This can be either D3D12_CLEAR_FLAG_DEPTH, D3D12_CLEAR_FLAG_STENCIL or both bitwised ORed together
+	//Depth: Defines the value to clear the depth values to
+	//Stencil: Defines the value to clear the stencil values to.
+	//NumRects: the number of elements in the pREcts array. this can be 0
+	//pRects: an array of D3D12_RECTs that identify rectangle regions on the render target to clear. 
+	//This can be nullptr to indicate to clear the entire render target.
 	m_CommandList->ClearDepthStencilView(this->GetDepthStencilView(), D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
 
 	//Specify the buffers we are going to render to.
