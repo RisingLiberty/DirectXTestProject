@@ -85,35 +85,21 @@ public:
 	int Start();
 
 protected:
-	std::wstring m_AppName;
-
-private:
-	HRESULT Initialize();
-	int Run();
-
-	HRESULT InitializeAdapters();
-	HRESULT InitializeOutputs();
-	HRESULT InitializeDisplays();
-
-	HRESULT InitializeWindow();
-	HRESULT InitializeD3D();
-	HRESULT CreateCommandObjects();
-	HRESULT CreateSwapChain();
-	HRESULT CreateRtvAndDsvDescriptorHeaps();
+	virtual void Update(const float dTime) = 0;
+	virtual void Draw() = 0;
 
 	D3D12_CPU_DESCRIPTOR_HANDLE GetCurrentBackBufferView() const;
 	D3D12_CPU_DESCRIPTOR_HANDLE GetDepthStencilView() const;
 
-	static LRESULT CALLBACK WindowProcdureStatic(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam);
-	LRESULT HandleEvent(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam);
+	ID3D12Resource* GetCurrentBackBuffer() const;
 
-	void CheckFeatureSupport(ID3D12Device* pDevice, D3D12_FEATURE feature, void* pFeatureSupportData, size_t featureSupportDataSize);
-	void CalculateFrameStats();
 	void FlushCommandQueue();
 
-private:
+protected:
+	std::wstring m_AppName;
+
 	GameTimer m_GameTimer;
-	
+
 	HINSTANCE m_hInstance;
 
 	HWND m_WindowHandle;
@@ -125,18 +111,19 @@ private:
 	UINT m_CurrentFence;
 
 	int m_CurrentBackBuffer = 0;
-	
+
 	bool m_4xMsaaEnabled = false;
 	bool m_IsPaused = false;
-	
+
 	static const uint32_t m_SwapChainBufferCount = 2;
-	
+
 	const DXGI_FORMAT m_BackBufferFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
 	const DXGI_FORMAT m_DepthStencilFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
-	
+
 	const int WIDTH = 1024;
 	const int HEIGHT = 720;
 
+	D3D12_VIEWPORT m_Viewport;
 	D3D12_RECT m_ScissorsRect;
 
 	//Microsoft recommends to use IDXGIFactory1 and IDXGIAdapter1 when using DirectX >= 11.0
@@ -159,5 +146,24 @@ private:
 	std::vector<Microsoft::WRL::ComPtr<IDXGIOutput>> m_Outputs;
 
 	std::array<Microsoft::WRL::ComPtr<ID3D12Resource>, m_SwapChainBufferCount> m_SwapChainBuffers;
-	
+
+private:
+	HRESULT Initialize();
+	int Run();
+
+	HRESULT InitializeAdapters();
+	HRESULT InitializeOutputs();
+	HRESULT InitializeDisplays();
+
+	HRESULT InitializeWindow();
+	HRESULT InitializeD3D();
+	HRESULT CreateCommandObjects();
+	HRESULT CreateSwapChain();
+	HRESULT CreateRtvAndDsvDescriptorHeaps();
+	   
+	static LRESULT CALLBACK WindowProcdureStatic(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam);
+	LRESULT HandleEvent(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam);
+
+	void CheckFeatureSupport(ID3D12Device* pDevice, D3D12_FEATURE feature, void* pFeatureSupportData, size_t featureSupportDataSize);
+	void CalculateFrameStats();
 };

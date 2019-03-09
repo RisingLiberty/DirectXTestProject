@@ -105,12 +105,15 @@ void Id3D12::CommandQueue::ExecuteCommandLists(UINT count, ID3D12CommandList* co
 
 //You can use the ID3D12Device::GetNodeCount method to query the number of GPU adapter nodes on the system.
 
+//windows extended functions
+#include <windowsx.h>
+
+#include <iostream>
 
 #include "D3DApp.h"
 
 #include "Utils.h"
 
-#include <iostream>
 
 using namespace DirectX;
 using namespace Microsoft::WRL;
@@ -142,11 +145,11 @@ int D3DApp::Start()
 
 HRESULT D3DApp::Initialize()
 {
-	ThrowIfFailed(InitializeAdapters());
-	ThrowIfFailed(InitializeOutputs());
-	ThrowIfFailed(InitializeDisplays());
-	ThrowIfFailed(InitializeWindow());
-	ThrowIfFailed(InitializeD3D());
+	ThrowIfFailed(this->InitializeAdapters());
+	ThrowIfFailed(this->InitializeOutputs());
+	ThrowIfFailed(this->InitializeDisplays());
+	ThrowIfFailed(this->InitializeWindow());
+	ThrowIfFailed(this->InitializeD3D());
 
 	return S_OK;
 }
@@ -172,7 +175,9 @@ int D3DApp::Run()
 
 			if (!m_IsPaused)
 			{
-				CalculateFrameStats();
+				this->CalculateFrameStats();
+				this->Update(m_GameTimer.GetDeltaTime());
+				this->Draw();
 			}
 			else
 				Sleep(100);
@@ -633,15 +638,14 @@ HRESULT D3DApp::CreateRtvAndDsvDescriptorHeaps()
 	//for example, you could set MinDepth = 0 and MaxDepth - 0, so that all objects drawn with this viewport
 	//will have depth values of 0 and appear in front of all other objects in the scene.
 	//However, usually MinDepth is set to 0 and MaxDepth set to 1 so that the depth values are not modified.
-	D3D12_VIEWPORT vp;
-	vp.TopLeftX = 0.0f;
-	vp.TopLeftY = 0.0f;
-	vp.Width = static_cast<float>(WIDTH);
-	vp.Height = static_cast<float>(HEIGHT);
-	vp.MinDepth = 0;
-	vp.MaxDepth = 1;
+	m_Viewport.TopLeftX = 0.0f;
+	m_Viewport.TopLeftY = 0.0f;
+	m_Viewport.Width = static_cast<float>(WIDTH);
+	m_Viewport.Height = static_cast<float>(HEIGHT);
+	m_Viewport.MinDepth = 0;
+	m_Viewport.MaxDepth = 1;
 
-	m_CommandList->RSSetViewports(1, &vp);
+	m_CommandList->RSSetViewports(1, &m_Viewport);
 	//Note: you cannot specify multiple viewports to the same render target.
 	//Multiple viewports are used for advanced techniques that render to multiple render targets at the same time.
 
@@ -679,6 +683,11 @@ HRESULT D3DApp::CreateRtvAndDsvDescriptorHeaps()
 	return S_OK;
 }
 
+ID3D12Resource* D3DApp::GetCurrentBackBuffer() const
+{
+	return m_SwapChainBuffers[m_CurrentBackBuffer].Get();
+}
+
 D3D12_CPU_DESCRIPTOR_HANDLE D3DApp::GetCurrentBackBufferView() const
 {
 	//CD3DX12 constructor to offset to the RTV of the current backbuffer
@@ -714,6 +723,7 @@ LRESULT D3DApp::HandleEvent(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPara
 {
 	switch (message)
 	{
+	//Is sent when the window is being destroyed
 	case WM_DESTROY:
 		PostQuitMessage(0);
 		return 0;
@@ -723,7 +733,7 @@ LRESULT D3DApp::HandleEvent(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPara
 		else
 			m_IsPaused = true;
 		return 0;
-
+		
 	default:
 		return DefWindowProc(hwnd, message, wParam, lParam);
 	}
