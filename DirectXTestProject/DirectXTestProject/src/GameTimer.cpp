@@ -11,12 +11,28 @@ GameTimer::GameTimer():
 	m_CurrTime(0),
 	m_IsStopped(false)
 {
-	__int64 countPerSec;
+	//The perfromance timer measure time in units called counts. We obtain the current time value,
+	//measured in counts, of the performance timer with the QueryPerformanceCounter function.
+	__int64 currTime;
+	QueryPerformanceCounter((LARGE_INTEGER*)&currTime);
 
-	QueryPerformanceFrequency((LARGE_INTEGER*)&countPerSec);
+	//To get the frequency (counts per second) of the performance timer, we use the QueryPerformanceFrequency function
+	__int64 countsPerSec;
+	QueryPerformanceFrequency((LARGE_INTEGER*)&countsPerSec);
 
-	m_SecondsPerCount = 1.0 / (double)countPerSec;
+	m_SecondsPerCount = 1.0 / (double)countsPerSec;
 
+	//So in the future to get the time elapsed:
+	//valueInSecs = valueInCounts * m_SecondsPerCount;
+
+	/*
+	MSDN has the following remark about QueryPerformanceCounter:
+	“On a multiprocessor computer, it should not matter which processor is called.
+	However, you can get different results on different processors due to bugs in the
+	basic input/output system (BIOS) or the hardware abstraction layer (HAL).” You
+	can use the SetThreadAffinityMask function so that the main application
+	thread does not get switch to another processor.
+	*/
 }
 
 void GameTimer::Start()
