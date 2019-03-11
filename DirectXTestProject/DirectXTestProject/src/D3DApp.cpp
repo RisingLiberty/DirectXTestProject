@@ -151,6 +151,8 @@ HRESULT D3DApp::Initialize()
 	ThrowIfFailed(this->InitializeWindow());
 	ThrowIfFailed(this->InitializeD3D());
 
+	this->OnResize();
+
 	return S_OK;
 }
 
@@ -495,190 +497,7 @@ HRESULT D3DApp::CreateRtvAndDsvDescriptorHeaps()
 	dsvHeapDesc.NodeMask = 0;
 	ThrowIfFailed(m_pDevice->CreateDescriptorHeap(&dsvHeapDesc, IID_PPV_ARGS(m_DsvHeap.ReleaseAndGetAddressOf())));
 
-	//After we create the heaps, we need to be able to access the descriptors they store.
-	//Our application references descriptor through handles.
-	//A handle to the first descriptor in a heap is obtained with the ID3D12DescriptorHeap::GetCPUDescriptorHandleForHeapStart method.
-	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHeapHandle(m_RtvHeap->GetCPUDescriptorHandleForHeapStart());
-	for (UINT i = 0; i < m_SwapChainBufferCount; ++i)
-	{
-		//Get the ith buffer in the swapchain
-		ThrowIfFailed(m_pSwapChain->GetBuffer(i, IID_PPV_ARGS(m_SwapChainBuffers[i].GetAddressOf())));
 
-		//Create RTV to it
-		m_pDevice->CreateRenderTargetView(m_SwapChainBuffers[i].Get(), nullptr, rtvHeapHandle);
-
-		//Next entry in heap
-		rtvHeapHandle.Offset(1, m_RtvDescriptorSize);
-	}
-
-	//We now need to create the depth/stencil buffer.
-	//D3D12_RESOURCE_DESC:
-	//{
-	//	Dimension: Dimension of the resource, which is one of the following enunmerated types:
-	//	D3D12_RESOURCE_DIMENSTION_UNKOWN = 0
-	//	D3D12_RESOURCE_DIMENSTION_BUFFER = 1
-	//	D3D12_RESOURCE_DIMENSTION_TEXTURE1D = 2
-	//	D3D12_rESOURCE_DIMENSTION_TEXTURE2D = 3
-	//	D3D12_RESOURCE_DIMENSTION_TEXTURE3D = 4
-	//
-	//	Width: the width of the texture in texels, for buffer resources, this is the number of bytes in the buffer.
-	//	Height: the height of the texture in texels.
-	//	DepthOrArraySize: the depth of the texture in texels, or the texture array size (for 1D and 2D textures).
-	//	Note that you cannot have a texture array of 3D textures.
-	//
-	//	MipLevels: the number of mipmap levels.
-	//	Format: A member of the DXGI_FORMAT enumerated type specifying the format of the texels.
-	//	SampleDesc: The number of multisamples and quality level. Recall that 4X MSAA uses a back buffer
-	//	and depth buffer 4X bigger than the screen resolution, in order to store color and depth/stencil information
-	//	per subpixel. Therefore, the multisampling settings used for the depth/stencil buffer must match the settings used
-	//	for the render target.
-	//
-	//	Layout: a member of the D3D12_TEXTURE_LAYOUT enumerated type that specifies the texture layout.
-	//	for now, we do not have to worry about the layout and can specify D3D12TEXTURE_LAYOUT_UNKNOWN.
-	//
-	//	MiscFlags: Miscellaneos resource flags. For a depth/stencil buffer,
-	//	specify D3D12_RESOURCE_MISC_DEPTH_STENCIL
-	//}
-
-	//GPU resources live in heaps, which are essentially block of GPU memory with certain properties.
-	//The ID3D12Device::CreateCommittedResource method creates and commits a resource to a particular heap
-	//with the properties we specify.
-
-	//pHeapProperties: The properties of the heap we want to commit the resource to.
-	//Some of these properties are for advanced usage.
-	//D3D12_HEAP_TYPE
-	//{
-	//	D3D12_HEAP_TYPE_DEFAULT: Default heap. This is where we commit resources where we need to upload
-	//data from the CPU to the GPU resource.
-	//	D3D12_HEAP_TYPE_UPLOAD: Upload heap. This is where we commit resources where we need to upload data from CPU to the GPU resource.
-	//	D3D12_HEA_TYPE_READBACK: Read-back heap. this is where we commit resources that need to be read by the CPU.
-	//	D3D12_HEAP_TYPE_CUSTOM: For advanced usage scenarios --see the MSDN documentation for more information.
-	//}
-
-	//HeapMiscFlags: Additional flags about the heap we want to commit the resource to. this will usually be D3D12_HEAP_MISC_NONE
-	//pResourceDesc: Pointer to a D3D12_RESOURCE_DESC instance describing the resource we want to create.
-
-	//pResourceDesc: Pointer to a D3D12_RESOURCE_DESC instance describing the resource we want to create.
-
-	//InitialResourceState: Set the initial state of the resource when it is created.
-	//For the depth/stencil buffer, the initial state will be D3D12_RESOURCE_USAGE_INITIAL, and then we will
-	//want to transition it to the D3D12_RESOURCE_USAGE_DEPTH so it can be bound to the pipeline as a depth/stencil view.
-
-	//pOptimizedClearValue: Pointer to a D3D12_CLEAR_VALUE object that describes an optimized value for clearing resources.
-	//Clear calls that match the optimized clear value can potentially be faster than clear calls that do not match
-	//the optimized clear value. Null can also be specified for this value to not specify an optimized clear value.
-	//D3D12_CLEAR_VALUE
-	//{
-	//	DXGI_FORMAT format;
-	//	union
-	//	{
-	//		FLOAT Color[4];
-	//		D3D12_DEPTH_STENCIL_VALUE DepthStencil;
-	//	};
-	//};
-	//riidResource: The COM ID of the ID3D12Resource interface we want to obtain a pointer to.
-	//ppvResource: Return pointer to an ID3D12Resource that represents the newly created resource.
-	//Note: Resources should be placed in the default heap for optimal performance.
-	//Only use upload or read back heaps if you need those features.
-
-	D3D12_RESOURCE_DESC depthStencilDesc;
-	depthStencilDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
-	depthStencilDesc.Alignment = 0;
-	depthStencilDesc.Width = WIDTH;
-	depthStencilDesc.Height = HEIGHT;
-	depthStencilDesc.DepthOrArraySize = 1;
-	depthStencilDesc.MipLevels = 1;
-	depthStencilDesc.Format = m_DepthStencilFormat;
-	depthStencilDesc.SampleDesc.Count = m_4xMsaaEnabled ? 4 : 1;
-	depthStencilDesc.SampleDesc.Quality = m_4xMsaaEnabled ? (m_4xMsaaQuality - 1) : 0;
-	depthStencilDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
-	depthStencilDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
-
-	D3D12_CLEAR_VALUE optClear;
-	optClear.Format = m_DepthStencilFormat;
-	optClear.DepthStencil.Depth = 1.0f;
-	optClear.DepthStencil.Stencil = 0;
-	ThrowIfFailed(m_pDevice->CreateCommittedResource(&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT), D3D12_HEAP_FLAG_NONE, &depthStencilDesc, D3D12_RESOURCE_STATE_COMMON, &optClear, IID_PPV_ARGS(m_DepthStencilBuffer.ReleaseAndGetAddressOf())));
-
-	//Create descriptor to mip level 0 of entire resource using the format of the resource.
-	m_pDevice->CreateDepthStencilView(m_DepthStencilBuffer.Get(), nullptr, GetDepthStencilView());
-
-	//Transition the resource from its initial state to be used as a depth buffer
-	m_CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_DepthStencilBuffer.Get(), D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_DEPTH_WRITE));
-
-	//note that we use the CD3DX12_HEAP_PROPERTIES helper constructor to create the heap properties strucutre,
-	//which is implemented like so:
-	//explicit cd3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE type, UINT creationNodeMask = 1, UINT nodeMask = 1)
-	//{
-	//	Type type;
-	//	CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
-	//	MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
-	//	CreationnodeMask = creationNodeMask
-	// VisiblenodeMask = nodeMask
-	//}
-
-	//The second parameter of CreateDepthStencilView is a pointer to a D3D12_DEPTH_STENCIL_VIEW_DESC.
-	//Among other things, this structure describes the data type (format) of the elements in the resource.
-	//If the resource was created with a typed format, then this parameter can be null.
-
-	//Setting the viewport
-	//struct D3D12_VIEWPORT
-	//{
-	//	FLOAT TopLeftX;
-	//	FLOAT TopLeftY;
-	//	FLOAT Width;
-	//	FLOAT Height;
-	//	FLOAT MinDepth;
-	//	FLOAT MaxDepth;
-	//};
-
-	//the first four data members define the viewport rectangle relative to the back buffer.
-	//In Direct3D, depth values are stored in the depth buffer in a normalized range of 0 to -1.
-	//Being able to transform the depth range can be used to achieve certain effects.
-	//for example, you could set MinDepth = 0 and MaxDepth - 0, so that all objects drawn with this viewport
-	//will have depth values of 0 and appear in front of all other objects in the scene.
-	//However, usually MinDepth is set to 0 and MaxDepth set to 1 so that the depth values are not modified.
-	m_Viewport.TopLeftX = 0.0f;
-	m_Viewport.TopLeftY = 0.0f;
-	m_Viewport.Width = static_cast<float>(WIDTH);
-	m_Viewport.Height = static_cast<float>(HEIGHT);
-	m_Viewport.MinDepth = 0;
-	m_Viewport.MaxDepth = 1;
-
-	m_CommandList->RSSetViewports(1, &m_Viewport);
-	//Note: you cannot specify multiple viewports to the same render target.
-	//Multiple viewports are used for advanced techniques that render to multiple render targets at the same time.
-
-	//Note: the viewport needs to be reset whenever the command list is reset.
-
-	//You could use the viewport to implement split screens for 2 player game modes, for example.
-	//You would create 2 viewports, one for the top and one for the bottom screen.
-	//Then you would draw the 3D scene from the perspective of player 1 into the top part of the screen
-	//and the perspective of player 2 in the bottom part of the screen.
-
-	//Set the scissor rectangles
-	//We cand fine a scissor rectangle relative to the back buffer such that pixels outside this rectangle are culled.
-	//This can be used for optimizations. For example, if we know an area of the screen will contain a rectangular UI
-	//element on top of everything, we do not need to process the pixels of the 3D world that the UI element would obscure.
-
-	//A scissor rectangle is defined by a D3D12_RECT structure which is typedefed to the following structure:
-	//typedef struct tagRECT
-	//{
-	//	LONG left
-	//	LONG top
-	//	LONG right
-	//	LONG bottom
-	//} RECT;
-
-	//we set the scissor rectangle with Direct3D with the ID3D12CommandList::RSSetScissorRects method
-	m_ScissorsRect = { 0, 0, WIDTH / 2, HEIGHT / 2 };
-	m_CommandList->RSSetScissorRects(1, &m_ScissorsRect);
-
-	//Note: you cannot specify multiple scissor rectangles on the same render target.
-	//Multiple scissor rectangle are used for advanced techniques that render to multiple
-	//render targets at the same time.
-
-	//Note: The scissors rectangles need to be reset whenever the command list is reset.
 
 	return S_OK;
 }
@@ -861,4 +680,211 @@ void D3DApp::FlushCommandQueue()
 		WaitForSingleObject(eventHandle, INFINITE);
 		CloseHandle(eventHandle);
 	}
+}
+
+void D3DApp::OnResize()
+{
+	this->FlushCommandQueue();
+	ThrowIfFailed(m_CommandList->Reset(m_DirectCmdListAlloc.Get(), nullptr));
+
+	//Release the previous resources we will be recreating
+	for (int i = 0; i < m_SwapChainBufferCount; ++i)
+		m_SwapChainBuffers[i].Reset();
+
+	m_DepthStencilBuffer.Reset();
+
+	ThrowIfFailed(m_pSwapChain->ResizeBuffers(m_SwapChainBufferCount, WIDTH, HEIGHT, m_BackBufferFormat, DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH));
+
+	m_CurrentBackBuffer = 0;
+
+	//After we create the heaps, we need to be able to access the descriptors they store.
+	//Our application references descriptor through handles.
+	//A handle to the first descriptor in a heap is obtained with the ID3D12DescriptorHeap::GetCPUDescriptorHandleForHeapStart method.
+	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHeapHandle(m_RtvHeap->GetCPUDescriptorHandleForHeapStart());
+	for (UINT i = 0; i < m_SwapChainBufferCount; ++i)
+	{
+		//Get the ith buffer in the swapchain
+		ThrowIfFailed(m_pSwapChain->GetBuffer(i, IID_PPV_ARGS(m_SwapChainBuffers[i].GetAddressOf())));
+
+		//Create RTV to it
+		m_pDevice->CreateRenderTargetView(m_SwapChainBuffers[i].Get(), nullptr, rtvHeapHandle);
+
+		//Next entry in heap
+		rtvHeapHandle.Offset(1, m_RtvDescriptorSize);
+	}
+
+	//We now need to create the depth/stencil buffer.
+	//D3D12_RESOURCE_DESC:
+	//{
+	//	Dimension: Dimension of the resource, which is one of the following enunmerated types:
+	//	D3D12_RESOURCE_DIMENSTION_UNKOWN = 0
+	//	D3D12_RESOURCE_DIMENSTION_BUFFER = 1
+	//	D3D12_RESOURCE_DIMENSTION_TEXTURE1D = 2
+	//	D3D12_rESOURCE_DIMENSTION_TEXTURE2D = 3
+	//	D3D12_RESOURCE_DIMENSTION_TEXTURE3D = 4
+	//
+	//	Width: the width of the texture in texels, for buffer resources, this is the number of bytes in the buffer.
+	//	Height: the height of the texture in texels.
+	//	DepthOrArraySize: the depth of the texture in texels, or the texture array size (for 1D and 2D textures).
+	//	Note that you cannot have a texture array of 3D textures.
+	//
+	//	MipLevels: the number of mipmap levels.
+	//	Format: A member of the DXGI_FORMAT enumerated type specifying the format of the texels.
+	//	SampleDesc: The number of multisamples and quality level. Recall that 4X MSAA uses a back buffer
+	//	and depth buffer 4X bigger than the screen resolution, in order to store color and depth/stencil information
+	//	per subpixel. Therefore, the multisampling settings used for the depth/stencil buffer must match the settings used
+	//	for the render target.
+	//
+	//	Layout: a member of the D3D12_TEXTURE_LAYOUT enumerated type that specifies the texture layout.
+	//	for now, we do not have to worry about the layout and can specify D3D12TEXTURE_LAYOUT_UNKNOWN.
+	//
+	//	MiscFlags: Miscellaneos resource flags. For a depth/stencil buffer,
+	//	specify D3D12_RESOURCE_MISC_DEPTH_STENCIL
+	//}
+
+	//GPU resources live in heaps, which are essentially block of GPU memory with certain properties.
+	//The ID3D12Device::CreateCommittedResource method creates and commits a resource to a particular heap
+	//with the properties we specify.
+
+	//pHeapProperties: The properties of the heap we want to commit the resource to.
+	//Some of these properties are for advanced usage.
+	//D3D12_HEAP_TYPE
+	//{
+	//	D3D12_HEAP_TYPE_DEFAULT: Default heap. This is where we commit resources where we need to upload
+	//data from the CPU to the GPU resource.
+	//	D3D12_HEAP_TYPE_UPLOAD: Upload heap. This is where we commit resources where we need to upload data from CPU to the GPU resource.
+	//	D3D12_HEA_TYPE_READBACK: Read-back heap. this is where we commit resources that need to be read by the CPU.
+	//	D3D12_HEAP_TYPE_CUSTOM: For advanced usage scenarios --see the MSDN documentation for more information.
+	//}
+
+	//HeapMiscFlags: Additional flags about the heap we want to commit the resource to. this will usually be D3D12_HEAP_MISC_NONE
+	//pResourceDesc: Pointer to a D3D12_RESOURCE_DESC instance describing the resource we want to create.
+
+	//pResourceDesc: Pointer to a D3D12_RESOURCE_DESC instance describing the resource we want to create.
+
+	//InitialResourceState: Set the initial state of the resource when it is created.
+	//For the depth/stencil buffer, the initial state will be D3D12_RESOURCE_USAGE_INITIAL, and then we will
+	//want to transition it to the D3D12_RESOURCE_USAGE_DEPTH so it can be bound to the pipeline as a depth/stencil view.
+
+	//pOptimizedClearValue: Pointer to a D3D12_CLEAR_VALUE object that describes an optimized value for clearing resources.
+	//Clear calls that match the optimized clear value can potentially be faster than clear calls that do not match
+	//the optimized clear value. Null can also be specified for this value to not specify an optimized clear value.
+	//D3D12_CLEAR_VALUE
+	//{
+	//	DXGI_FORMAT format;
+	//	union
+	//	{
+	//		FLOAT Color[4];
+	//		D3D12_DEPTH_STENCIL_VALUE DepthStencil;
+	//	};
+	//};
+	//riidResource: The COM ID of the ID3D12Resource interface we want to obtain a pointer to.
+	//ppvResource: Return pointer to an ID3D12Resource that represents the newly created resource.
+	//Note: Resources should be placed in the default heap for optimal performance.
+	//Only use upload or read back heaps if you need those features.
+
+	D3D12_RESOURCE_DESC depthStencilDesc;
+	depthStencilDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+	depthStencilDesc.Alignment = 0;
+	depthStencilDesc.Width = WIDTH;
+	depthStencilDesc.Height = HEIGHT;
+	depthStencilDesc.DepthOrArraySize = 1;
+	depthStencilDesc.MipLevels = 1;
+	depthStencilDesc.Format = m_DepthStencilFormat;
+	depthStencilDesc.SampleDesc.Count = m_4xMsaaEnabled ? 4 : 1;
+	depthStencilDesc.SampleDesc.Quality = m_4xMsaaEnabled ? (m_4xMsaaQuality - 1) : 0;
+	depthStencilDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+	depthStencilDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
+
+	D3D12_CLEAR_VALUE optClear;
+	optClear.Format = m_DepthStencilFormat;
+	optClear.DepthStencil.Depth = 1.0f;
+	optClear.DepthStencil.Stencil = 0;
+	ThrowIfFailed(m_pDevice->CreateCommittedResource(&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT), D3D12_HEAP_FLAG_NONE, &depthStencilDesc, D3D12_RESOURCE_STATE_COMMON, &optClear, IID_PPV_ARGS(m_DepthStencilBuffer.ReleaseAndGetAddressOf())));
+
+	//Create descriptor to mip level 0 of entire resource using the format of the resource.
+	m_pDevice->CreateDepthStencilView(m_DepthStencilBuffer.Get(), nullptr, GetDepthStencilView());
+
+	//Transition the resource from its initial state to be used as a depth buffer
+	m_CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(m_DepthStencilBuffer.Get(), D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_DEPTH_WRITE));
+
+	ThrowIfFailed(m_CommandList->Close());
+	ID3D12CommandList* cmdsList[] = { m_CommandList.Get() };
+	m_pCommandQueue->ExecuteCommandLists(_countof(cmdsList), cmdsList);
+
+	this->FlushCommandQueue();
+
+	//note that we use the CD3DX12_HEAP_PROPERTIES helper constructor to create the heap properties strucutre,
+	//which is implemented like so:
+	//explicit cd3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE type, UINT creationNodeMask = 1, UINT nodeMask = 1)
+	//{
+	//	Type type;
+	//	CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
+	//	MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
+	//	CreationnodeMask = creationNodeMask
+	// VisiblenodeMask = nodeMask
+	//}
+
+	//The second parameter of CreateDepthStencilView is a pointer to a D3D12_DEPTH_STENCIL_VIEW_DESC.
+	//Among other things, this structure describes the data type (format) of the elements in the resource.
+	//If the resource was created with a typed format, then this parameter can be null.
+
+	//Setting the viewport
+	//struct D3D12_VIEWPORT
+	//{
+	//	FLOAT TopLeftX;
+	//	FLOAT TopLeftY;
+	//	FLOAT Width;
+	//	FLOAT Height;
+	//	FLOAT MinDepth;
+	//	FLOAT MaxDepth;
+	//};
+
+	//the first four data members define the viewport rectangle relative to the back buffer.
+	//In Direct3D, depth values are stored in the depth buffer in a normalized range of 0 to -1.
+	//Being able to transform the depth range can be used to achieve certain effects.
+	//for example, you could set MinDepth = 0 and MaxDepth - 0, so that all objects drawn with this viewport
+	//will have depth values of 0 and appear in front of all other objects in the scene.
+	//However, usually MinDepth is set to 0 and MaxDepth set to 1 so that the depth values are not modified.
+	m_Viewport.TopLeftX = 0.0f;
+	m_Viewport.TopLeftY = 0.0f;
+	m_Viewport.Width = static_cast<float>(WIDTH);
+	m_Viewport.Height = static_cast<float>(HEIGHT);
+	m_Viewport.MinDepth = 0;
+	m_Viewport.MaxDepth = 1;
+
+	//m_CommandList->RSSetViewports(1, &m_Viewport);
+	//Note: you cannot specify multiple viewports to the same render target.
+	//Multiple viewports are used for advanced techniques that render to multiple render targets at the same time.
+
+	//Note: the viewport needs to be reset whenever the command list is reset.
+
+	//You could use the viewport to implement split screens for 2 player game modes, for example.
+	//You would create 2 viewports, one for the top and one for the bottom screen.
+	//Then you would draw the 3D scene from the perspective of player 1 into the top part of the screen
+	//and the perspective of player 2 in the bottom part of the screen.
+
+	//Set the scissor rectangles
+	//We cand fine a scissor rectangle relative to the back buffer such that pixels outside this rectangle are culled.
+	//This can be used for optimizations. For example, if we know an area of the screen will contain a rectangular UI
+	//element on top of everything, we do not need to process the pixels of the 3D world that the UI element would obscure.
+
+	//A scissor rectangle is defined by a D3D12_RECT structure which is typedefed to the following structure:
+	//typedef struct tagRECT
+	//{
+	//	LONG left
+	//	LONG top
+	//	LONG right
+	//	LONG bottom
+	//} RECT;
+
+	//we set the scissor rectangle with Direct3D with the ID3D12CommandList::RSSetScissorRects method
+	m_ScissorsRect = { 0, 0, WIDTH / 2, HEIGHT / 2 };
+	//m_CommandList->RSSetScissorRects(1, &m_ScissorsRect);
+
+	//Note: you cannot specify multiple scissor rectangles on the same render target.
+	//Multiple scissor rectangle are used for advanced techniques that render to multiple
+	//render targets at the same time.
+
+	//Note: The scissors rectangles need to be reset whenever the command list is reset.
 }

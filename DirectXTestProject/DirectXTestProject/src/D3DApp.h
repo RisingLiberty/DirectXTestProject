@@ -85,6 +85,7 @@ public:
 	int Start();
 
 protected:
+	virtual HRESULT Initialize();
 	virtual void Update(const float dTime) = 0;
 	virtual void Draw() = 0;
 
@@ -148,7 +149,6 @@ protected:
 	std::array<Microsoft::WRL::ComPtr<ID3D12Resource>, m_SwapChainBufferCount> m_SwapChainBuffers;
 
 private:
-	HRESULT Initialize();
 	int Run();
 
 	HRESULT InitializeAdapters();
@@ -166,4 +166,5 @@ private:
 
 	void CheckFeatureSupport(ID3D12Device* pDevice, D3D12_FEATURE feature, void* pFeatureSupportData, size_t featureSupportDataSize);
 	void CalculateFrameStats();
+	void OnResize();
 };
