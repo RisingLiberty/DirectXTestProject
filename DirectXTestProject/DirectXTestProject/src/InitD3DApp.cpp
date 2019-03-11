@@ -1,4 +1,5 @@
 #include <DirectXColors.h>
+#include <iostream>
 
 #include "InitD3DApp.h"
 
@@ -37,6 +38,28 @@ void InitD3DApp::Draw()
 	//NumRects: The number of elements in the pRects array.
 	//pRects: an array of D3D12_RECTs that identify rectangle regions on the render target to clear.
 	//This can be nullptr to indicate to clear the entire render target.
+
+	//float clearColor[4] = 
+	//{
+	//	0,0,0,1
+	//};
+	//
+	//static float time = -1;
+	//time += 0.001f;
+	//float sinOutput = sin(time);
+	//
+	//sinOutput *= 0.5f;
+	//sinOutput += 0.5f;
+	//
+	//clearColor[1] = sinOutput;
+	//
+	//RECT r[2] = 
+	//{ 
+	//	{ 0,0, 200, 300 },
+	//	{ 100, 100, 500, 1000}
+	//};
+	//m_CommandList->ClearRenderTargetView(this->GetCurrentBackBufferView(), clearColor, 2, r);
+
 	//Clear the back buffer and depth buffer
 	m_CommandList->ClearRenderTargetView(this->GetCurrentBackBufferView(), DirectX::Colors::LightBlue, 0, nullptr);
 
@@ -49,6 +72,13 @@ void InitD3DApp::Draw()
 	//pRects: an array of D3D12_RECTs that identify rectangle regions on the render target to clear. 
 	//This can be nullptr to indicate to clear the entire render target.
 	m_CommandList->ClearDepthStencilView(this->GetDepthStencilView(), D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
+
+	//NumRenderTargetDescriptors: Specifies the number of RTVs we are going to bind.
+	//Using multiple render targets simultaneously is used for more advanced techniques, for now, one is enough
+	//pRenderTargetDescriptors: pointer to an array of RTVs that specify the render targets we want to bind to the pipeline.
+	//RtsSingleHandleToDescriptorRange: specify true if all the RTVs in the previous array are contiguous in
+	//the descriptor heap. Otherwise, specify false.
+	//pDepthStencilDescriptor: pointer to a DSV that specifies the depth/stencil buffer we want to bind to the pipeline.
 
 	//Specify the buffers we are going to render to.
 	m_CommandList->OMSetRenderTargets(1, &this->GetCurrentBackBufferView(), true, &this->GetDepthStencilView());
