@@ -216,8 +216,130 @@ HRESULT DrawingD3DApp::Initialize()
 	// StartIndexLocation: Index to an element in the index buffer that marks the starting point from which to begin reading indices.s
 	// BaseVertexLocation: An integer value to be added to the indices used in this draw call before the vertices are fetched.
 	// StartInstanceLocation: Used for an advanced technique called instancing.
-	//ID3D12GraphicsCommandList::DrawIndexedInstanced(UINT IndexCountPerInstnace, UINT InstanceCount, UINT StartIndexLoaction, INT BaseVertexLocation, UINT StartInstanceLocation);
+	// ID3D12GraphicsCommandList::DrawIndexedInstanced(UINT IndexCountPerInstnace, UINT InstanceCount, UINT StartIndexLoaction, INT BaseVertexLocation, UINT StartInstanceLocation);
 
+	// Constant buffer descriptors live in a descriptor heap of type D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV.
+	// Such a hepa can store a mixture of constant buffer, shader resource and unordered access descriptors.
+	// to store these new types of descriptors we will need to create a new descriptor heap of this type:
+	D3D12_DESCRIPTOR_HEAP_DESC cbvHeapDesc;
+	cbvHeapDesc.NumDescriptors = 1;
+	cbvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+	cbvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+	cbvHeapDesc.NodeMask = 0;
+
+	m_pDevice->CreateDescriptorHeap(&cbvHeapDesc, IID_PPV_ARGS(m_CbvHeap.ReleaseAndGetAddressOf()));
+
+	// The above code is similar to how we created the render target and depth.stencil buffer descriptor heaps.
+	// However, one important difference is that we specify the D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE flag
+	// to indicate that these descriptors will be accessed by shader programs
+
+	// A constant buffer view is created by filling out a D3D12_CONSTANT_BUFFER_VIEW_DESC instance and calling
+	// ID3D12Device::CreateConstantBufferView.
+	
+	// n == 1
+	m_ObjectConstantBuffer = std::make_unique<UploadBuffer<ObjectConstants>>(m_pDevice.Get(), 1, true);
+	
+	UINT objCBByteSize = CalculateConstantBufferByteSize(sizeof(ObjectConstants));
+
+	// Address to start of the buffer (0th constant buffer)
+	D3D12_GPU_VIRTUAL_ADDRESS cbAddress = m_ObjectConstantBuffer->GetResource()->GetGPUVirtualAddress();
+
+	//Offset to the ith object constant buffer in the buffer.
+	int boxCBufIndex = 0;
+	cbAddress += boxCBufIndex * objCBByteSize;
+
+	// The D3D12_CONSTANT_BUFFER_VIEW_DESC strucutre describes a subset of the constant buffer
+	// resource to bind to the HLSL constant buffer structure. As Mentioned, typically a constant
+	// buffer stores an array of per-object constants for n objects, but we can get a view to the ith
+	// object constant data by using the BufferLocation and SizeInByes.
+	// The D3D12_CONSTANT_BUFFER_VIEW_DESC::SizeInBytes and D3D12_CONSTANT_BUFFER_VIEW_DESC::OffsetInBytes
+	// members must be a multiple of 256 bytes due to hardware requirements.
+	// for example, if you would've specified 64, the following error would occur.
+	
+	// D3D12 ERROR: ID3D12Device::CreateConstantBufferView:
+	// SizeInBytes of 64 is invalid. Device requires SizeInBytes be a multiple of 256.
+
+	// D3D12 ERROR : ID3D12Device::CreateConstantBufferView :
+	// OffsetInBytes of 64 is invalid.Device requires OffsetInBytes be a multiple of 256.
+	
+	D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc;
+	cbvDesc.BufferLocation = cbAddress;
+	cbvDesc.SizeInBytes = objCBByteSize;
+
+	m_pDevice->CreateConstantBufferView(&cbvDesc, m_CbvHeap->GetCPUDescriptorHandleForHeapStart());
 
 	return S_OK;
+}
+
+void DrawingD3DApp::Update(float dTime)
+{
+	//Convert spherical to Cartesian coordinates
+	float x = m_Radius * sinf(m_Phi) * cosf(m_Theta);
+	float z = m_Radius * sinf(m_Phi) * sinf(m_Theta);
+	float y = m_Radius * cosf(m_Phi);
+
+	//Build the view matrix
+	XMVECTOR pos = XMVectorSet(x, y, z, 1.0f);
+	XMVECTOR target = XMVectorZero();
+	XMVECTOR up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+	
+	XMMATRIX view = XMMatrixLookAtLH(pos, target, up);
+	XMStoreFloat4x4(&m_View, view);
+
+	XMMATRIX world = XMLoadFloat4x4(m_World);
+	XMMATRIX proj = XMLoadFloat4x4(&m_Proj);
+
+	XMMATRIX worldViewProj = world * view * proj;
+
+	// Update the constant buffer with the latest worldViewProj matrix.
+	ObjectConstants objConstants;
+	XMStoreFloat4x4(&objConstants.WorldViewProj, XMMatrixTranspose(worldViewProj));
+	m_ObjectConstantBuffer->CopyData(0, objConstants);
+}
+
+void DrawingD3DApp::Draw()
+{
+
+}
+
+void DrawingD3DApp::OnMouseDown(WPARAM btnState, int x, int y)
+{
+
+}
+
+void DrawingD3DApp::OnMouseUp(WPARAM btnState, int x, int y)
+{
+
+}
+
+void DrawingD3DApp::OnMouseMove(WPARAM btnState, int x, int y)
+{
+	if (btnState & MK_LBUTTON)
+	{
+		// Make each pixel correspond to a quarter of a degree.
+		float dx = XMConvertToRadians(0.25f * static_cast<float>(x - m_LastMousePos.x));
+		float dy = XMConvertToRadians(0.25f * static_cast<float>(y - m_LastMousePos.y));
+
+		//Update angles based on input to orbit camera around box.
+		m_Theta += dx;
+		m_Phi += dy;
+
+		// Restrict the angle m_Phi
+		m_Phi = Clamp(m_Phi, 0.1f, XM_PI - 0.1f);
+	}
+	else if (btnState & MK_RBUTTON)
+	{
+		// Make each pixel correspond to 0.00f unit in the scene.
+		float dx = 0.005f * static_cast<float>(x - m_LastMousePos.x);
+		float dy = 0.005f * static_cast<float>(y - m_LastMousePos.y);
+
+		// Update the camera radius based on input
+		m_Radius += dx - dy;
+
+		// Restrict the radius
+		m_Radius = Clamp(m_Radius, 3.0f, 15.0f);
+	}
+
+	m_LastMousePos.x = x;
+	m_LastMousePos.y = y;
 }
