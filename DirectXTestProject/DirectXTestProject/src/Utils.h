@@ -1,8 +1,11 @@
 #pragma once
 
 #include <Windows.h>
+#include <wrl.h>
+#include <d3d12.h>
 
 #include <string>
+
 
 class DxException
 {
@@ -25,6 +28,11 @@ inline std::wstring AnsiToWString(const std::string& str)
 	MultiByteToWideChar(CP_ACP, 0, str.c_str(), -1, buffer, 512);
 	return std::wstring(buffer);
 }
+
+//Because an intermediate upload buffer is required to initialize the data of a default buffer,
+//we build the following utility function to avoid repeating this work every time we need a default buffer
+Microsoft::WRL::ComPtr<ID3D12Resource> CreateDefaultBuffer(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList, const void* initData, UINT64 byteSize, Microsoft::WRL::ComPtr<ID3D12Resource>& uploadBuffer);
+
 
 #ifndef ThrowIfFailed
 #define ThrowIfFailed(x)\
