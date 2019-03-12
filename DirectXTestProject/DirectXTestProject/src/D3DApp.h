@@ -96,6 +96,11 @@ protected:
 
 	void FlushCommandQueue();
 
+	// methods to handle mouse input
+	virtual void OnMouseDown(WPARAM btnState, int x, int y) {}
+	virtual void OnMouseUp(WPARAM btnState, int x, int y)	{}
+	virtual void OnMouseMove(WPARAM btnState, int x, int y) {}
+
 protected:
 	std::wstring m_AppName;
 

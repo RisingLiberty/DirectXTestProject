@@ -552,7 +552,15 @@ LRESULT D3DApp::HandleEvent(HWND hwnd, UINT message, WPARAM wParam, LPARAM lPara
 		else
 			m_IsPaused = true;
 		return 0;
-		
+	case WM_RBUTTONDOWN:
+		OnMouseDown(wParam, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
+		return 0;
+	case WM_RBUTTONUP:
+		OnMouseUp(wParam, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
+		return 0;
+	case WM_MOUSEMOVE:
+		OnMouseMove(wParam, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
+
 	default:
 		return DefWindowProc(hwnd, message, wParam, lParam);
 	}
