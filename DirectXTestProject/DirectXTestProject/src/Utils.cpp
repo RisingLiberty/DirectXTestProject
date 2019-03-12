@@ -79,3 +79,28 @@ Microsoft::WRL::ComPtr<ID3D12Resource> CreateDefaultBuffer(ID3D12Device* device,
 
 	return defaultBuffer;
 }
+
+UINT CalculateConstantBufferByteSize(UINT byteSize)
+{
+	// Constant buffers must be a multiple of the mimimum hadware allocation size (usually 256 bytes)
+	// So round up to nearest multiple of 256. We do this by adding 255 and then masking off
+	// the lower 2 bytes which store all bits < 256.
+	// Example: Suppose byteSize = 300.
+	// (300 + 255) & ~255
+	// 555 & ~255
+	// 0x022B & ~0x00ff
+	// 0x022b & 0xff00
+	// 0x0200
+	// 512
+	return (byteSize + 255) & ~255;
+
+	// Note: even though we allocate constant data in multiples of 256, it is not necessary to
+	// explicitly pad the corresponding constant data in the HLSL structure because
+	// it is done implicitly.
+
+	//Node: to avoid dealing with rounding constant buffer elemnts to a multiple of 256 bytes,
+	// you could explicitly pad all your constant buffer structures to always be a multiple of 256 bytes.
+
+
+}
+

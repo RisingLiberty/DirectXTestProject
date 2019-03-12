@@ -33,6 +33,14 @@ inline std::wstring AnsiToWString(const std::string& str)
 //we build the following utility function to avoid repeating this work every time we need a default buffer
 Microsoft::WRL::ComPtr<ID3D12Resource> CreateDefaultBuffer(ID3D12Device* device, ID3D12GraphicsCommandList* cmdList, const void* initData, UINT64 byteSize, Microsoft::WRL::ComPtr<ID3D12Resource>& uploadBuffer);
 
+UINT CalculateConstantBufferByteSize(UINT byteSize);
+
+template<typename T>
+static T Clamp(const T& x, const T& low, const T& high)
+{
+	return x < low ? low : (x > high ? high : x);
+}
+
 
 #ifndef ThrowIfFailed
 #define ThrowIfFailed(x)\
