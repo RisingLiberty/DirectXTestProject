@@ -27,6 +27,264 @@ HRESULT DrawingD3DApp::Initialize()
 {
 	ThrowIfFailed(D3DApp::Initialize());
 
+	this->BuildDescriptorHeaps();
+	this->BuildConstantBuffers();
+	this->BuildRootSignature();
+	this->BuildBoxGeometry();
+	this->BuildPSO();
+	
+
+	
+
+	// The root signature only defines what resources the application will bind to the rendering pipeline
+	// it does not actually do any resource binding.
+	// once a root signature has been set with a command list, we use the 
+	// ID3D12GraphicsCommandList::SetGraphicsRootDescriptorTable to bind a descriptor table to the pipeline
+	
+	// RootParameterIndex: index of the root paramter we are setting
+	// BaseDescriptor: Handle to a descriptor in the heap that specifies the first descriptor in the table
+	// being set. For examplle, if the root signature specified that this table had five descriptors, then
+	// BaseDescriptor and the next four descriptors in the heap are being set to this root table.
+	// ID3D12GraphicsCommandList::SetGraphicsRootDescriptorTable(UINT RootParameterIndex, D3D12_GPU_DESCRIPTOR_HANDLE BaseDescriptor);
+	
+	m_CommandList->SetGraphicsRootSignature(m_RootSignature.Get());
+	ID3D12DescriptorHeap* descriptorHeaps[] = 
+	{
+		m_CbvHeap.Get()
+	};
+
+	m_CommandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
+
+	// Offset the cbv we want to use for this draw call
+	CD3DX12_GPU_DESCRIPTOR_HANDLE cbv(m_CbvHeap->GetGPUDescriptorHandleForHeapStart());
+	cbv.Offset(/*cbvIndex*/0, m_CbvSrvDescriptorSize);
+
+	// Note: for performance, make the root signature as small as possible, and try to minimize the
+	// number of times you change the root signature per rendering frame
+
+	// The contents of the Root Signature (the descriptor tables, root constants and root descriptors)
+	// that the application has bound automatically get versioned by the D3D12 driver whenever any part
+	// of the contents change between draw/dispatch calls. So each draw/dispatch gets an unique full set of
+	// Root Signature state.
+
+	// If you change the root signature then you lose all the exisiting bindings.
+	// That is, you need to rebind all the resources to the pipeline the new root signature expects.
+
+	return S_OK;
+}
+
+void DrawingD3DApp::Update(float dTime)
+{
+	//Convert spherical to Cartesian coordinates
+	float x = m_Radius * sinf(m_Phi) * cosf(m_Theta);
+	float z = m_Radius * sinf(m_Phi) * sinf(m_Theta);
+	float y = m_Radius * cosf(m_Phi);
+
+	//Build the view matrix
+	XMVECTOR pos = XMVectorSet(x, y, z, 1.0f);
+	XMVECTOR target = XMVectorZero();
+	XMVECTOR up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
+	
+	XMMATRIX view = XMMatrixLookAtLH(pos, target, up);
+	XMStoreFloat4x4(&m_View, view);
+
+	XMMATRIX world = XMLoadFloat4x4(m_World);
+	XMMATRIX proj = XMLoadFloat4x4(&m_Proj);
+
+	XMMATRIX worldViewProj = world * view * proj;
+
+	// Update the constant buffer with the latest worldViewProj matrix.
+	ObjectConstants objConstants;
+	XMStoreFloat4x4(&objConstants.WorldViewProj, XMMatrixTranspose(worldViewProj));
+	m_ObjectConstantBuffer->CopyData(0, objConstants);
+}
+
+void DrawingD3DApp::Draw()
+{
+
+}
+
+void DrawingD3DApp::OnMouseDown(WPARAM btnState, int x, int y)
+{
+
+}
+
+void DrawingD3DApp::OnMouseUp(WPARAM btnState, int x, int y)
+{
+
+}
+
+void DrawingD3DApp::OnMouseMove(WPARAM btnState, int x, int y)
+{
+	if (btnState & MK_LBUTTON)
+	{
+		// Make each pixel correspond to a quarter of a degree.
+		float dx = XMConvertToRadians(0.25f * static_cast<float>(x - m_LastMousePos.x));
+		float dy = XMConvertToRadians(0.25f * static_cast<float>(y - m_LastMousePos.y));
+
+		//Update angles based on input to orbit camera around box.
+		m_Theta += dx;
+		m_Phi += dy;
+
+		// Restrict the angle m_Phi
+		m_Phi = Clamp(m_Phi, 0.1f, XM_PI - 0.1f);
+	}
+	else if (btnState & MK_RBUTTON)
+	{
+		// Make each pixel correspond to 0.00f unit in the scene.
+		float dx = 0.005f * static_cast<float>(x - m_LastMousePos.x);
+		float dy = 0.005f * static_cast<float>(y - m_LastMousePos.y);
+
+		// Update the camera radius based on input
+		m_Radius += dx - dy;
+
+		// Restrict the radius
+		m_Radius = Clamp(m_Radius, 3.0f, 15.0f);
+	}
+
+	m_LastMousePos.x = x;
+	m_LastMousePos.y = y;
+}
+
+void DrawingD3DApp::BuildDescriptorHeaps()
+{
+	// Constant buffer descriptors live in a descriptor heap of type D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV.
+	// Such a hepa can store a mixture of constant buffer, shader resource and unordered access descriptors.
+	// to store these new types of descriptors we will need to create a new descriptor heap of this type:
+	D3D12_DESCRIPTOR_HEAP_DESC cbvHeapDesc;
+	cbvHeapDesc.NumDescriptors = 1;
+	cbvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+	cbvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+	cbvHeapDesc.NodeMask = 0;
+
+	m_pDevice->CreateDescriptorHeap(&cbvHeapDesc, IID_PPV_ARGS(m_CbvHeap.ReleaseAndGetAddressOf()));
+
+	// The above code is similar to how we created the render target and depth.stencil buffer descriptor heaps.
+	// However, one important difference is that we specify the D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE flag
+	// to indicate that these descriptors will be accessed by shader programs
+}
+
+void DrawingD3DApp::BuildConstantBuffers()
+{
+	// A constant buffer view is created by filling out a D3D12_CONSTANT_BUFFER_VIEW_DESC instance and calling
+	// ID3D12Device::CreateConstantBufferView.
+
+	// n == 1
+	m_ObjectConstantBuffer = std::make_unique<UploadBuffer<ObjectConstants>>(m_pDevice.Get(), 1, true);
+
+	UINT objCBByteSize = CalculateConstantBufferByteSize(sizeof(ObjectConstants));
+
+	// Address to start of the buffer (0th constant buffer)
+	D3D12_GPU_VIRTUAL_ADDRESS cbAddress = m_ObjectConstantBuffer->GetResource()->GetGPUVirtualAddress();
+
+	//Offset to the ith object constant buffer in the buffer.
+	int boxCBufIndex = 0;
+	cbAddress += boxCBufIndex * objCBByteSize;
+
+	// The D3D12_CONSTANT_BUFFER_VIEW_DESC strucutre describes a subset of the constant buffer
+	// resource to bind to the HLSL constant buffer structure. As Mentioned, typically a constant
+	// buffer stores an array of per-object constants for n objects, but we can get a view to the ith
+	// object constant data by using the BufferLocation and SizeInByes.
+	// The D3D12_CONSTANT_BUFFER_VIEW_DESC::SizeInBytes and D3D12_CONSTANT_BUFFER_VIEW_DESC::OffsetInBytes
+	// members must be a multiple of 256 bytes due to hardware requirements.
+	// for example, if you would've specified 64, the following error would occur.
+
+	// D3D12 ERROR: ID3D12Device::CreateConstantBufferView:
+	// SizeInBytes of 64 is invalid. Device requires SizeInBytes be a multiple of 256.
+
+	// D3D12 ERROR : ID3D12Device::CreateConstantBufferView :
+	// OffsetInBytes of 64 is invalid.Device requires OffsetInBytes be a multiple of 256.
+
+	D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc;
+	cbvDesc.BufferLocation = cbAddress;
+	cbvDesc.SizeInBytes = objCBByteSize;
+
+	m_pDevice->CreateConstantBufferView(&cbvDesc, m_CbvHeap->GetCPUDescriptorHandleForHeapStart());
+}
+
+void DrawingD3DApp::BuildRootSignature()
+{
+	// Shader programs typically require resources as input (constant buffers, textures, samplers).
+	// the root signature defines the resources the shader programs expects.
+	// If we think of a shader program as a functoin, and the input resources as function parameters,
+	// then the root signature can be thought of as defining the function signature.
+
+	// Root parameter can be a table root descriptor or root constants
+
+	CD3DX12_ROOT_PARAMETER slotRootParamter[1];
+
+	// Create a single descriptor table of CBVs
+	CD3DX12_DESCRIPTOR_RANGE cbvTable;
+	cbvTable.Init
+	(
+		D3D12_DESCRIPTOR_RANGE_TYPE_CBV,
+		1, // number of descriptors in table
+		0 // base shader register arguments are bound to for this root paramter
+	);
+
+	slotRootParamter[0].InitAsDescriptorTable
+	(
+		1, //number of ranges
+		&cbvTable //pointer to array of ranges
+	);
+
+	// A root signature is an array of root parameters.
+	CD3DX12_ROOT_SIGNATURE_DESC rootSignDesc
+	(
+		1,
+		slotRootParamter,
+		0,
+		nullptr,
+		D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT
+	);
+
+	// create a root signature with a single slot which points to a descriptor range
+	// consisting of a single constant buffer.
+	ComPtr<ID3DBlob> serializedRootSig = nullptr;
+	ComPtr<ID3DBlob> errorBlob = nullptr;
+
+	HRESULT hr = D3D12SerializeRootSignature(&rootSignDesc, D3D_ROOT_SIGNATURE_VERSION_1, serializedRootSig.GetAddressOf(), errorBlob.GetAddressOf());
+
+	ThrowIfFailed(m_pDevice->CreateRootSignature(
+		0,
+		serializedRootSig->GetBufferPointer(),
+		serializedRootSig->GetBufferSize(),
+		IID_PPV_ARGS(&m_RootSignature)
+	));
+}
+
+void DrawingD3DApp::BuildShaderAndInputLayout()
+{
+	// In Direct3D, shader programs must first be compiled to a portable bytecode.
+	// the graphics driver will then take this bytecode and compile it again into optimal
+	// native instructions for the system's GPU. At runtime, we can compile a shader with the following instruction
+	// HRESULT D3DCompileFromFile
+	// (
+	//	LPCWSTR pFileName, // The name of the .hlsl file that contains the HLSL source code we want to compile
+	//	const D3D_SHADER_MACRO* pDefines, // Advanced option we do not use.
+	//	ID3DInclude *pInclude, // Advanced option we do not use
+	//  LPCSTR pEntrypoint, // the function name of the shader's entry point. A HLSL can contain multiple shader programs
+	//  eg.(a vertex and pixel shadr), so we need to specify the entry point of the particular shader we want to compile.
+	//  LPCSTR pTarget // A string specifying the shader program type and version we are using.
+	//  1) vs_5_0 and vs_5_1: vertex shader 5.0 and 5.1
+	//  2) hs_5_0 and hs_5_1: hull shader 5.0 and 5.1
+	//  3) ds_5_0 and ds_5_1: domain shader 5.0 and 5.1
+	//  4) gs_5_0 and gs_5_1: geometry shader 5.0 and 5.1
+	//  5) ps_5_0 and ps_5_1: pixel shader 5.0 and 5.1
+	//  6) cs_5_0 and cs_5_1: compute shader 5.0 and 5.1
+	//	UINT Flags1, // Flags to specify how the shader code should be compiled. (D3DCOMPILE_DEBUG, D3DCOMPILE_SKIP_OPTIMIZATOIN)
+	//	UINT Flags2, // Advanced effect compilatoin options we do not use. 
+	//	ID3DBlob** ppCode, // Returns a pointer to a ID3DBlob data structure that stores the compiled shader object byte code
+	//	ID3DBlob** ppErrorMsgs // Returns a pointer to a ID3DBlob data structure that stores a string containing the cimpilation errors
+	// );
+
+	// The type ID3DBlob is just a geneeric chunk of memory that has 2 methods:
+	// LPVOID GetBufferPointer: Returns a void* to the data, so it must be casted to the appropriate type before use)
+	// SIZE_T GetBufferSize: Returns the byte size of the buffer
+
+	m_VsByteCode = CompileShader(L"../../Data/Shaders/shader.fx", nullptr, "VS", "vs_5_0");
+	m_PsByteCode = CompileShader(L"Shader/shader.fx", nullptr, "PS", "ps_5_0");
+
 	// Input Layout
 	// SemanticName: A string to associate with the element. This can be any valid variable name.
 	// Semantics are used to map elements in the vertex strucutre to elements in the vertex shader input signature.
@@ -83,8 +341,10 @@ HRESULT DrawingD3DApp::Initialize()
 	// Note: In contrast with DirectX 11, all resources are represented by the ID3D12Resource interface,
 	// and their type is specified in the Dimension field of the struct, where as in DirectX 11, you had
 	// D3D11Buffer and D3D11Texture2D to specify the type of resource.
+}
 
-	// Box Geometry
+void DrawingD3DApp::BuildBoxGeometry()
+{
 	std::array<Vertex, 8> vertices =
 	{
 		Vertex({ XMFLOAT3(-1.0f, -1.0f, -1.0f), XMFLOAT4(Colors::White) }),
@@ -217,129 +477,8 @@ HRESULT DrawingD3DApp::Initialize()
 	// BaseVertexLocation: An integer value to be added to the indices used in this draw call before the vertices are fetched.
 	// StartInstanceLocation: Used for an advanced technique called instancing.
 	// ID3D12GraphicsCommandList::DrawIndexedInstanced(UINT IndexCountPerInstnace, UINT InstanceCount, UINT StartIndexLoaction, INT BaseVertexLocation, UINT StartInstanceLocation);
-
-	// Constant buffer descriptors live in a descriptor heap of type D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV.
-	// Such a hepa can store a mixture of constant buffer, shader resource and unordered access descriptors.
-	// to store these new types of descriptors we will need to create a new descriptor heap of this type:
-	D3D12_DESCRIPTOR_HEAP_DESC cbvHeapDesc;
-	cbvHeapDesc.NumDescriptors = 1;
-	cbvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-	cbvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-	cbvHeapDesc.NodeMask = 0;
-
-	m_pDevice->CreateDescriptorHeap(&cbvHeapDesc, IID_PPV_ARGS(m_CbvHeap.ReleaseAndGetAddressOf()));
-
-	// The above code is similar to how we created the render target and depth.stencil buffer descriptor heaps.
-	// However, one important difference is that we specify the D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE flag
-	// to indicate that these descriptors will be accessed by shader programs
-
-	// A constant buffer view is created by filling out a D3D12_CONSTANT_BUFFER_VIEW_DESC instance and calling
-	// ID3D12Device::CreateConstantBufferView.
-	
-	// n == 1
-	m_ObjectConstantBuffer = std::make_unique<UploadBuffer<ObjectConstants>>(m_pDevice.Get(), 1, true);
-	
-	UINT objCBByteSize = CalculateConstantBufferByteSize(sizeof(ObjectConstants));
-
-	// Address to start of the buffer (0th constant buffer)
-	D3D12_GPU_VIRTUAL_ADDRESS cbAddress = m_ObjectConstantBuffer->GetResource()->GetGPUVirtualAddress();
-
-	//Offset to the ith object constant buffer in the buffer.
-	int boxCBufIndex = 0;
-	cbAddress += boxCBufIndex * objCBByteSize;
-
-	// The D3D12_CONSTANT_BUFFER_VIEW_DESC strucutre describes a subset of the constant buffer
-	// resource to bind to the HLSL constant buffer structure. As Mentioned, typically a constant
-	// buffer stores an array of per-object constants for n objects, but we can get a view to the ith
-	// object constant data by using the BufferLocation and SizeInByes.
-	// The D3D12_CONSTANT_BUFFER_VIEW_DESC::SizeInBytes and D3D12_CONSTANT_BUFFER_VIEW_DESC::OffsetInBytes
-	// members must be a multiple of 256 bytes due to hardware requirements.
-	// for example, if you would've specified 64, the following error would occur.
-	
-	// D3D12 ERROR: ID3D12Device::CreateConstantBufferView:
-	// SizeInBytes of 64 is invalid. Device requires SizeInBytes be a multiple of 256.
-
-	// D3D12 ERROR : ID3D12Device::CreateConstantBufferView :
-	// OffsetInBytes of 64 is invalid.Device requires OffsetInBytes be a multiple of 256.
-	
-	D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc;
-	cbvDesc.BufferLocation = cbAddress;
-	cbvDesc.SizeInBytes = objCBByteSize;
-
-	m_pDevice->CreateConstantBufferView(&cbvDesc, m_CbvHeap->GetCPUDescriptorHandleForHeapStart());
-
-	return S_OK;
 }
 
-void DrawingD3DApp::Update(float dTime)
+void DrawingD3DApp::BuildPSO()
 {
-	//Convert spherical to Cartesian coordinates
-	float x = m_Radius * sinf(m_Phi) * cosf(m_Theta);
-	float z = m_Radius * sinf(m_Phi) * sinf(m_Theta);
-	float y = m_Radius * cosf(m_Phi);
-
-	//Build the view matrix
-	XMVECTOR pos = XMVectorSet(x, y, z, 1.0f);
-	XMVECTOR target = XMVectorZero();
-	XMVECTOR up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
-	
-	XMMATRIX view = XMMatrixLookAtLH(pos, target, up);
-	XMStoreFloat4x4(&m_View, view);
-
-	XMMATRIX world = XMLoadFloat4x4(m_World);
-	XMMATRIX proj = XMLoadFloat4x4(&m_Proj);
-
-	XMMATRIX worldViewProj = world * view * proj;
-
-	// Update the constant buffer with the latest worldViewProj matrix.
-	ObjectConstants objConstants;
-	XMStoreFloat4x4(&objConstants.WorldViewProj, XMMatrixTranspose(worldViewProj));
-	m_ObjectConstantBuffer->CopyData(0, objConstants);
-}
-
-void DrawingD3DApp::Draw()
-{
-
-}
-
-void DrawingD3DApp::OnMouseDown(WPARAM btnState, int x, int y)
-{
-
-}
-
-void DrawingD3DApp::OnMouseUp(WPARAM btnState, int x, int y)
-{
-
-}
-
-void DrawingD3DApp::OnMouseMove(WPARAM btnState, int x, int y)
-{
-	if (btnState & MK_LBUTTON)
-	{
-		// Make each pixel correspond to a quarter of a degree.
-		float dx = XMConvertToRadians(0.25f * static_cast<float>(x - m_LastMousePos.x));
-		float dy = XMConvertToRadians(0.25f * static_cast<float>(y - m_LastMousePos.y));
-
-		//Update angles based on input to orbit camera around box.
-		m_Theta += dx;
-		m_Phi += dy;
-
-		// Restrict the angle m_Phi
-		m_Phi = Clamp(m_Phi, 0.1f, XM_PI - 0.1f);
-	}
-	else if (btnState & MK_RBUTTON)
-	{
-		// Make each pixel correspond to 0.00f unit in the scene.
-		float dx = 0.005f * static_cast<float>(x - m_LastMousePos.x);
-		float dy = 0.005f * static_cast<float>(y - m_LastMousePos.y);
-
-		// Update the camera radius based on input
-		m_Radius += dx - dy;
-
-		// Restrict the radius
-		m_Radius = Clamp(m_Radius, 3.0f, 15.0f);
-	}
-
-	m_LastMousePos.x = x;
-	m_LastMousePos.y = y;
 }

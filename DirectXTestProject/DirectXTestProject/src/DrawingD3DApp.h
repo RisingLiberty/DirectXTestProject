@@ -32,6 +32,14 @@ protected:
 	virtual void OnMouseMove(WPARAM btnState, int x, int y) override;
 
 private:
+	void BuildDescriptorHeaps();
+	void BuildConstantBuffers();
+	void BuildRootSignature();
+	void BuildShaderAndInputLayout();
+	void BuildBoxGeometry();
+	void BuildPSO();
+
+private:
 	std::array<D3D12_INPUT_ELEMENT_DESC> m_InputLayout;
 
 	float m_Theta = 1.5f*XM_PI;
@@ -48,4 +56,6 @@ private:
 	XMFLOAT4X4 m_Proj = MAT_4_IDENTITY;
 
 	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> m_CbvHeap;
+	Microsoft::WRL::ComPtr<ID3D12RootSignature> m_RootSignature = nullptr;
+
 };
