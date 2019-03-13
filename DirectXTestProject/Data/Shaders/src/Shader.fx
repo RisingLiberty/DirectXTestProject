@@ -73,20 +73,20 @@ struct VertexIn
 struct VertexOut
 {
 	float4 PosH : SV_POSITION;
-	float4 Color : COLORl
+	float4 Color : COLOR;
 };
 
 VertexOut VS(VertexIn input)
 {
-	VertexOut out;
+	VertexOut vout;
 
 	//Transform to homogeneous clip space.
-	out.PosH = mul(float4(input.PosL, 1.0f), gWorldViewProj);
+	vout.PosH = mul(float4(input.PosL, 1.0f), gWorldViewProj);
 
 	//Just pass the vertex color into the pixel shader
-	out.Color = input.Color;
+	vout.Color = input.Color;
 
-	return out;
+	return vout;
 }
 
 // Note: if there is no geometry shader, then the vertex shader must output 
@@ -119,7 +119,7 @@ out float4 oColor : COLOR
 */
 
 // SV_TARGET --> the return value type should match the render target format
-float4 PS(VertexOut input) SV_TARGET 
+float4 PS(VertexOut input) : SV_TARGET 
 {
 	return input.Color;
 }
