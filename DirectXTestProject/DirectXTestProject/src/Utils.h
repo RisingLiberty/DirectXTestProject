@@ -41,6 +41,8 @@ static T Clamp(const T& x, const T& low, const T& high)
 	return x < low ? low : (x > high ? high : x);
 }
 
+Microsoft::WRL::ComPtr<ID3DBlob> CompileShader(const std::wstring& fileName, const D3D_SHADER_MACRO* defines, const std::string& entryPoint, const std::string& target);
+
 
 #ifndef ThrowIfFailed
 #define ThrowIfFailed(x)\

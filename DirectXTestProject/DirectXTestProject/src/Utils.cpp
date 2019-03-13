@@ -1,9 +1,13 @@
 #include "Utils.h"
 
 #include <DirectX/d3dx12.h>
+#include <d3dcompiler.h>
 
 #include <sstream>
 #include <comdef.h>
+#include <iostream>
+
+using namespace Microsoft::WRL;
 
 DxException::DxException(HRESULT hr, const std::wstring& functionName, const std::wstring& fileName, int lineNr):
 	m_ErrorCode(hr),
@@ -104,3 +108,25 @@ UINT CalculateConstantBufferByteSize(UINT byteSize)
 
 }
 
+Microsoft::WRL::ComPtr<ID3DBlob> CompileShader(const std::wstring& fileName, const D3D_SHADER_MACRO* defines, const std::string& entryPoint, const std::string& target)
+{
+	// USe debug flags in debug mode
+	UINT compileFlags = 0;
+#if defined(DEBUG) || defined(_DEBUG)
+	compileFlags = D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
+#endif
+
+	HRESULT hr = S_OK;
+
+	ComPtr<ID3DBlob> byteCode = nullptr;
+	ComPtr<ID3DBlob> errors;
+	hr = D3DCompileFromFile(fileName.c_str(), defines, D3D_COMPILE_STANDARD_FILE_INCLUDE, entryPoint.c_str(), target.c_str(), compileFlags, 0, &byteCode, &errors);
+
+	//Output errors to debug window.
+	if (errors)
+		std::cerr << (char*)errors->GetBufferPointer() << "\n";
+
+	ThrowIfFailed(hr);
+
+	return byteCode;
+}
