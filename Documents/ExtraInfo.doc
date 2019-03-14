@@ -1,0 +1,60 @@
+1. A vertex in Direct3D can consist of additional data besides spatial location. To create
+a custom vertex format, we first define a structure that holds the vertex data we
+choose. Once we have defined a vertex structure, we describe it to Direct3D by
+defining an input layout description (D3D12_INPUT_LAYOUT_DESC), which is an
+array of D3D12_INPUT_ELEMENT_DESC elements, and the number of elements in
+the array. Each element in the D3D12_INPUT_ELEMENT_DESC array describes
+and corresponds to one component in the vertex structure. An input layout
+description is set as a field in the D3D12_GRAPHICS_PIPELINE_STATE_DESC
+structure, where it becomes part of a PSO, and is validated against the vertex shader
+input signature. An input layout is bound to the IA stage when the PSO it is part of
+gets bound.
+
+2. In order for the GPU to access an array of vertices/indices, they need to be placed in
+a resource called a buffer, which is represented by the
+ID3D12Resource interface. A buffer that stores vertices is called a vertex buffer
+and a buffer that stores indices is called an index buffer. A buffer resource is created
+by filling out a D3D12_RESOURCE_DESC structure and then calling the
+ID3D12Device::CreateCommittedResource method. A view to a vertex
+buffer is represented by the D3D12_VERTEX_BUFFER_VIEW structure, and a view
+to an index buffer is represented by the D3D12_INDEX_BUFFER_VIEW structure.
+A vertex buffer is bound to the IA stage with the
+ID3D12GraphicsCommandList::IASetVertexBuffers method, and an
+index buffer is bound to the IA stage with the
+ID3D12GraphicsCommandList::IASetIndexBuffer method. Nonindexed
+geometry can be drawn with
+ID3D12GraphicsCommandList::DrawInstanced, and indexed geometry
+can be drawn with
+ID3D12GraphicsCommandList::DrawIndexedInstanced.
+
+3. A vertex shader is a program written in HLSL, executed on the GPU, which inputs a
+vertex and outputs a vertex. Every drawn vertex goes through the vertex shader. This
+enables the programmer to do specialized work on a per vertex basis to achieve
+various rendering effects. The values output from the vertex shader are passed on to
+the next stage in the pipeline.
+
+4. A constant buffer is a GPU resource (ID3D12Resource) whose data contents can
+be referenced in shader programs. They are created in an upload heap rather than a
+default heap so that the application can update the constant buffer data by copying
+system memory to GPU memory. In this way, the C++ application can communicate
+with the shader and update the values in the constant buffers the shader uses; for
+example, the C++ application can change the world-view-projection matrix the
+shader uses. The general advice is to create constant buffers based on the frequency
+in which you need to update their contents. The motivation for dividing the constant
+buffers up is efficiency. When a constant buffer is updated, all its variables must be
+updated; therefore, it is efficient to group them based on their update frequency to
+minimize redundant updates.
+
+5. A pixel shader is a program written in HLSL, executed on the GPU, which inputs
+interpolated vertex data and outputs a color value. As a hardware optimization, it is
+possible that a pixel fragment is rejected by the pipeline before making it to the pixel
+shader (e.g., early-z rejection). Pixel shaders enable the programmer to do specialized
+work on a per pixel basis to achieve various rendering effects. The values output
+from the pixel shader are passed on to the next stage in the pipeline.
+
+6. Most of the Direct3D objects that control the state of the graphics pipeline are
+specified as an aggregate called a pipeline state object (PSO), which is represented by
+the ID3D12PipelineState interface. We specify all these objects as an
+aggregate to the graphics pipeline for performance. By specifying them as an
+aggregate, Direct3D can validate that all the state is compatible and the driver can
+generate all the code up front to program the hardware state.
