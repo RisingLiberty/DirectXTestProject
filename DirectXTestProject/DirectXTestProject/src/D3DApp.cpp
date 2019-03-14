@@ -143,6 +143,11 @@ int D3DApp::Start()
 	return this->Run();
 }
 
+float D3DApp::GetAspectRatio() const
+{
+	return (float)WIDTH / HEIGHT;
+}
+
 HRESULT D3DApp::Initialize()
 {
 	ThrowIfFailed(this->InitializeAdapters());
@@ -202,7 +207,7 @@ HRESULT D3DApp::InitializeAdapters()
 		DXGI_ADAPTER_DESC1 desc;
 		pAdapter->GetDesc1(&desc);
 
-		std::wcout << L"Adapter: " << desc.Description << L"\n";
+		//std::wcout << L"Adapter: " << desc.Description << L"\n";
 		m_Adapters.emplace_back(pAdapter);
 	}
 
@@ -225,7 +230,7 @@ HRESULT D3DApp::InitializeOutputs()
 			DXGI_OUTPUT_DESC desc;
 			pOutput->GetDesc(&desc);
 
-			std::wcout << L"Output: " << desc.DeviceName << L"\n";
+			//std::wcout << L"Output: " << desc.DeviceName << L"\n";
 			m_Outputs.emplace_back(pOutput);
 		}
 	}
@@ -252,9 +257,9 @@ HRESULT D3DApp::InitializeDisplays()
 			UINT n = mode.RefreshRate.Numerator;
 			UINT d = mode.RefreshRate.Denominator;
 
-			std::wcout << L"Width = " << mode.Width << L"\n";
-			std::wcout << L"Height = " << mode.Height << L"\n";
-			std::wcout << L"Refresh = " << n << L"/" << d << L" = " << (float)n / d << L"\n";
+			//std::wcout << L"Width = " << mode.Width << L"\n";
+			//std::wcout << L"Height = " << mode.Height << L"\n";
+			//std::wcout << L"Refresh = " << n << L"/" << d << L" = " << (float)n / d << L"\n";
 		}
 	}
 
@@ -887,7 +892,7 @@ void D3DApp::OnResize()
 	//} RECT;
 
 	//we set the scissor rectangle with Direct3D with the ID3D12CommandList::RSSetScissorRects method
-	m_ScissorsRect = { 0, 0, WIDTH / 2, HEIGHT / 2 };
+	m_ScissorsRect = { 0, 0, WIDTH, HEIGHT };
 	//m_CommandList->RSSetScissorRects(1, &m_ScissorsRect);
 
 	//Note: you cannot specify multiple scissor rectangles on the same render target.

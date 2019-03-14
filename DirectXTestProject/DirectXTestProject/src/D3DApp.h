@@ -1,5 +1,6 @@
 #pragma once
 
+
 //Define to minimize the number of header files included in windows.h
 #define WIN32_LEAN_AND_MEAN
 
@@ -84,6 +85,8 @@ public:
 
 	int Start();
 
+	float GetAspectRatio() const;
+
 protected:
 	virtual HRESULT Initialize();
 	virtual void Update(const float dTime) = 0;
@@ -100,6 +103,8 @@ protected:
 	virtual void OnMouseDown(WPARAM btnState, int x, int y) {}
 	virtual void OnMouseUp(WPARAM btnState, int x, int y)	{}
 	virtual void OnMouseMove(WPARAM btnState, int x, int y) {}
+
+	virtual void OnResize();
 
 protected:
 	std::wstring m_AppName;
@@ -171,5 +176,5 @@ private:
 
 	void CheckFeatureSupport(ID3D12Device* pDevice, D3D12_FEATURE feature, void* pFeatureSupportData, size_t featureSupportDataSize);
 	void CalculateFrameStats();
-	void OnResize();
 };
+
