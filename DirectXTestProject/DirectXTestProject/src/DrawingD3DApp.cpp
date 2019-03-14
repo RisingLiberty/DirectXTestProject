@@ -9,17 +9,9 @@
 #include <wrl.h>
 #include <iostream>
 
-#include "Utils.h"
-
 using namespace Microsoft::WRL;
 using namespace DirectX;
 using namespace DirectX::PackedVector;
-
-struct Vertex
-{
-	XMFLOAT3 Pos;
-	XMFLOAT4 Color;
-};
 
 DrawingD3DApp::DrawingD3DApp(HINSTANCE hInstance):
 	D3DApp(hInstance)
@@ -81,7 +73,7 @@ HRESULT DrawingD3DApp::Initialize()
 
 	// If you change the root signature then you lose all the exisiting bindings.
 	// That is, you need to rebind all the resources to the pipeline the new root signature expects.
-
+	
 	return S_OK;
 }
 

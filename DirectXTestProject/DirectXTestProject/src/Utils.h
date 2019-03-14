@@ -119,3 +119,108 @@ struct MeshGeometry
 }
 #endif
 
+#define MAT_4_IDENTITY DirectX::XMFLOAT4X4\
+(\
+	1.0f, 0.0f, 0.0f, 0.0f,\
+	0.0f, 1.0f, 0.0f, 0.0f,\
+	0.0f, 0.0f, 1.0f, 0.0f,\
+	0.0f, 0.0f, 0.0f, 1.0f\
+)
+
+int gNumFrameResources = 3;
+
+struct ObjectConstants
+{
+	DirectX::XMFLOAT4X4 World = MAT_4_IDENTITY;
+};
+
+// Contains constant data that is fixed over a given rendering pass.
+struct PassConstants
+{
+	DirectX::XMFLOAT4X4 View = MAT_4_IDENTITY;
+	DirectX::XMFLOAT4X4 InvView = MAT_4_IDENTITY;
+	DirectX::XMFLOAT4X4 Proj = MAT_4_IDENTITY;
+	DirectX::XMFLOAT4X4 InvProj = MAT_4_IDENTITY;
+	DirectX::XMFLOAT4X4 ViewProj = MAT_4_IDENTITY;
+	DirectX::XMFLOAT4X4 InvViewProj = MAT_4_IDENTITY;
+	DirectX::XMFLOAT3 EyePosW = { 0.0f, 0.0f, 0.0f };
+	float cbPerObjectPad1 = 0.0f;
+	DirectX::XMFLOAT2 RenderTargetSize = { 0.0f, 0.0f };
+	DirectX::XMFLOAT2 InvRenderTargetSize = { 0.0f, 0.0f };
+	float NearZ = 0.0f;
+	float FarZ = 0.0f;
+	float TotalTime = 0.0f;
+	float DeltaTime = 0.0f;
+};
+
+// The idea of these 2 cbuffer is to group constant based on updated frequency.
+// The per pass constant only need to be updated once per rendering pass.
+// The object constants only need to change when an object's world matrix changes.
+// If we had a static object in the scene, like a tree, we only need to set its world matrix
+// once to a constant buffer and then never update the constant buffer again.
+
+// Note: As a optimization freak, these optimization features can give me orgams!
+
+//HLSL code:
+/*
+cbuffer cbPerObject : register(b0)
+{
+	float4x4 gWorld;
+};
+
+cbuffer cbPass : register(b1)
+{
+	float4x4 gView;
+	float4x4 gInvView;
+	float4x4 gProj;
+	float4x4 gInvProj;
+	float4x4 gViewProj;
+	float4x4 gInvViewProj;
+	float3 gEyePosW;
+	float cbPerObjectPad1;
+	float2 gRenderTargetSize;
+	float2 gInvRenderTargetSize;
+	float gNearZ;
+	float gFarZ;
+	float gTotalTime;
+	float gDeltaTime;
+};
+*/
+
+struct Vertex
+{
+	DirectX::XMFLOAT3 Pos;
+	DirectX::XMFLOAT4 Color;
+};
+
+// Lightweight structure stores parameters to draw a shape.
+// This will vary from app-to-app.
+struct RenderItem
+{
+	RenderItem() = default;
+
+	// World matrix of the shape that describes the object's local space relative to the world space,
+	// which defines the position, orientation and scale of the object in the world.
+	DirectX::XMFLOAT4X4 World = MAT_4_IDENTITY;
+
+	// Dirty flag indicating the object data has changed and we need to update the constant buffer.
+	// because we have an object cbuffer for each FrameResource, we have to apply the update to each FrameResource.
+	// Thus, when we modify object data we should set NumFramesDirty = s_NumFrameResources so that each frame resource get the update.
+	int NumFramesDirty = gNumFrameResources;
+
+	// Index into GPU constant buffer coorespond to the ObjectCB for this render item
+	UINT ObjCBIndex = -1;
+
+	// Geometry associated with this render item
+	// Note: multiple render items can share the same geometry.
+	MeshGeometry* Geometry = nullptr;
+
+	// Primitive topology.
+	D3D12_PRIMITIVE_TOPOLOGY PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
+
+	// DrawIndexedInstanced parameters.
+	UINT IndexCount = 0;
+	UINT StartIndexLocation = 0;
+	int BaseVertexLocation = 0;
+};
+

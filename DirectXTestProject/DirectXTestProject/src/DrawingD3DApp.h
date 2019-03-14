@@ -3,18 +3,7 @@
 #include "D3DApp.h"
 #include "UploadBuffer.h"
 
-#define MAT_4_IDENTITY DirectX::XMFLOAT4X4\
-(\
-	1.0f, 0.0f, 0.0f, 0.0f,\
-	0.0f, 1.0f, 0.0f, 0.0f,\
-	0.0f, 0.0f, 1.0f, 0.0f,\
-	0.0f, 0.0f, 0.0f, 1.0f\
-)
-
-struct ObjectConstants
-{
-	DirectX::XMFLOAT4X4 WorldViewProj = MAT_4_IDENTITY;
-};
+#include "Utils.h"
 
 class DrawingD3DApp : public D3DApp
 {
