@@ -1,9 +1,13 @@
+#pragma region MyCode
+
+
 #include "DrawingD3DApp.h"
 
 #include <DirectXMath.h>
 #include <DirectXPackedVector.h>
 #include <DirectXColors.h>
 #include <wrl.h>
+#include <iostream>
 
 #include "Utils.h"
 
@@ -27,15 +31,23 @@ HRESULT DrawingD3DApp::Initialize()
 {
 	ThrowIfFailed(D3DApp::Initialize());
 
+	// Reset the command list to prep for initialization commands
+	ThrowIfFailed(m_CommandList->Reset(m_DirectCmdListAlloc.Get(), nullptr));
+
 	this->BuildDescriptorHeaps();
 	this->BuildConstantBuffers();
 	this->BuildRootSignature();
+	this->BuildShaderAndInputLayout();
 	this->BuildBoxGeometry();
 	this->BuildPSO();
 	
+	ThrowIfFailed(m_CommandList->Close());
+	ID3D12CommandList* cmdsLists[] = { m_CommandList.Get() };
+	m_pCommandQueue->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);
 
-	
+	this->FlushCommandQueue();
 
+	return S_OK;
 	// The root signature only defines what resources the application will bind to the rendering pipeline
 	// it does not actually do any resource binding.
 	// once a root signature has been set with a command list, we use the 
@@ -73,6 +85,15 @@ HRESULT DrawingD3DApp::Initialize()
 	return S_OK;
 }
 
+void DrawingD3DApp::OnResize()
+{
+	D3DApp::OnResize();
+
+	// The window resized, so update the aspect ratio and recompute the projection matrix.
+	XMMATRIX P = XMMatrixPerspectiveFovLH(0.25f*XM_PI, this->GetAspectRatio(), 1.0f, 1000.0f);
+	XMStoreFloat4x4(&m_Proj, P);
+}
+
 void DrawingD3DApp::Update(float dTime)
 {
 	//Convert spherical to Cartesian coordinates
@@ -88,7 +109,7 @@ void DrawingD3DApp::Update(float dTime)
 	XMMATRIX view = XMMatrixLookAtLH(pos, target, up);
 	XMStoreFloat4x4(&m_View, view);
 
-	XMMATRIX world = XMLoadFloat4x4(m_World);
+	XMMATRIX world = XMLoadFloat4x4(&m_World);
 	XMMATRIX proj = XMLoadFloat4x4(&m_Proj);
 
 	XMMATRIX worldViewProj = world * view * proj;
@@ -101,17 +122,71 @@ void DrawingD3DApp::Update(float dTime)
 
 void DrawingD3DApp::Draw()
 {
+	// Reuse the memory assocaited with recording.
+	// We can only reset when the associated command lists have finished execution on the GPU.
+	ThrowIfFailed(m_DirectCmdListAlloc->Reset());
 
+	// A command list can be reset after it has been added to the command queue via ExecuteCommandList.
+	// Reusing the command list reuses memory.
+	ThrowIfFailed(m_CommandList->Reset(m_DirectCmdListAlloc.Get(), m_Pso.Get()));
+
+	m_CommandList->RSSetViewports(1, &m_Viewport);
+	m_CommandList->RSSetScissorRects(1, &m_ScissorsRect);
+
+	// Indicate a state transition on the resource usage.
+	m_CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(this->GetCurrentBackBuffer(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET));
+
+	// Clear the back buffer and depth buffer.
+	m_CommandList->ClearRenderTargetView(this->GetCurrentBackBufferView(), Colors::Blue, 0, nullptr);
+	m_CommandList->ClearDepthStencilView(this->GetDepthStencilView(), D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
+
+	// Specify the buffers we are going to render to.
+	m_CommandList->OMSetRenderTargets(1, &this->GetCurrentBackBufferView(), true, &this->GetDepthStencilView());
+
+	ID3D12DescriptorHeap* descriptorHeaps[] = { m_CbvHeap.Get() };
+	m_CommandList->SetDescriptorHeaps(_countof(descriptorHeaps), descriptorHeaps);
+
+	m_CommandList->SetGraphicsRootSignature(m_RootSignature.Get());
+
+	m_CommandList->IASetVertexBuffers(0, 1, &m_BoxGeo->GetVertexBufferView());
+	m_CommandList->IASetIndexBuffer(&m_BoxGeo->GetIndexBufferView());
+	m_CommandList->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST); //no Direct X 12 version
+
+	m_CommandList->SetGraphicsRootDescriptorTable(0, m_CbvHeap->GetGPUDescriptorHandleForHeapStart());
+
+	m_CommandList->DrawIndexedInstanced(m_BoxGeo->DrawArgs["box"].IndexCount, 1, 0, 0, 0);
+
+	// Indicate a state transition on the resource usage.
+	m_CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(this->GetCurrentBackBuffer(), D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PRESENT));
+
+	// Done recording commands
+	ThrowIfFailed(m_CommandList->Close());
+
+	// Add the command list to the queue for execution
+	ID3D12CommandList* cmdsLists[]{ m_CommandList.Get() };
+	m_pCommandQueue->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);
+
+	// Swap the back and front buffers
+	ThrowIfFailed(m_pSwapChain->Present(1, 0));
+
+	m_CurrentBackBuffer = (m_CurrentBackBuffer + 1) % m_SwapChainBufferCount;
+
+	// Wait until frame commands are complete. This waiting is inefficient and is done for simplicity.
+	// Later we will show how to organize our rendering code so we do not have to wait per frame.
+	this->FlushCommandQueue();
 }
 
 void DrawingD3DApp::OnMouseDown(WPARAM btnState, int x, int y)
 {
+	m_LastMousePos.x = x;
+	m_LastMousePos.y = y;
 
+	SetCapture(m_WindowHandle);
 }
 
 void DrawingD3DApp::OnMouseUp(WPARAM btnState, int x, int y)
 {
-
+	ReleaseCapture();
 }
 
 void DrawingD3DApp::OnMouseMove(WPARAM btnState, int x, int y)
@@ -219,7 +294,7 @@ void DrawingD3DApp::BuildRootSignature()
 	(
 		D3D12_DESCRIPTOR_RANGE_TYPE_CBV,
 		1, // number of descriptors in table
-		0 // base shader register arguments are bound to for this root paramter
+		0  // base shader register arguments are bound to for this root paramter
 	);
 
 	slotRootParamter[0].InitAsDescriptorTable
@@ -244,6 +319,11 @@ void DrawingD3DApp::BuildRootSignature()
 	ComPtr<ID3DBlob> errorBlob = nullptr;
 
 	HRESULT hr = D3D12SerializeRootSignature(&rootSignDesc, D3D_ROOT_SIGNATURE_VERSION_1, serializedRootSig.GetAddressOf(), errorBlob.GetAddressOf());
+
+	if (errorBlob)
+		std::cout << (char*)errorBlob->GetBufferPointer();
+
+	ThrowIfFailed(hr);
 
 	ThrowIfFailed(m_pDevice->CreateRootSignature(
 		0,
@@ -282,8 +362,11 @@ void DrawingD3DApp::BuildShaderAndInputLayout()
 	// LPVOID GetBufferPointer: Returns a void* to the data, so it must be casted to the appropriate type before use)
 	// SIZE_T GetBufferSize: Returns the byte size of the buffer
 
-	m_VsByteCode = CompileShader(L"../../Data/Shaders/shader.fx", nullptr, "VS", "vs_5_0");
-	m_PsByteCode = CompileShader(L"Shader/shader.fx", nullptr, "PS", "ps_5_0");
+	// m_VsByteCode = CompileShader(L"../../Data/Shaders/shader.fx", nullptr, "VS", "vs_5_0");
+	// m_PsByteCode = CompileShader(L"Shader/shader.fx", nullptr, "PS", "ps_5_0");
+
+	m_VsByteCode = LoadBinary(L"../Data/Shaders/bin/debug/shader_debug_vs.cso");
+	m_PsByteCode = LoadBinary(L"../Data/Shaders/bin/debug/shader_debug_ps.cso");
 
 	// Input Layout
 	// SemanticName: A string to associate with the element. This can be any valid variable name.
@@ -325,7 +408,7 @@ void DrawingD3DApp::BuildShaderAndInputLayout()
 	m_InputLayout =
 	{ {
 		{"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
-		{"NORMAL", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0}
+		{"COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0}
 	} };
 
 	// width: refers to the number of bytes in the buffer.
@@ -347,22 +430,45 @@ void DrawingD3DApp::BuildBoxGeometry()
 {
 	std::array<Vertex, 8> vertices =
 	{
-		Vertex({ XMFLOAT3(-1.0f, -1.0f, -1.0f), XMFLOAT4(Colors::White) }),
-		Vertex({ XMFLOAT3(-1.0f, +1.0f, -1.0f), XMFLOAT4(Colors::Black) }),
-		Vertex({ XMFLOAT3(+1.0f, +1.0f, -1.0f), XMFLOAT4(Colors::Red) }),
-		Vertex({ XMFLOAT3(+1.0f, -1.0f, -1.0f), XMFLOAT4(Colors::Green) }),
-		Vertex({ XMFLOAT3(-1.0f, -1.0f, +1.0f), XMFLOAT4(Colors::Blue) }),
-		Vertex({ XMFLOAT3(-1.0f, +1.0f, +1.0f), XMFLOAT4(Colors::Yellow) }),
-		Vertex({ XMFLOAT3(+1.0f, +1.0f, +1.0f), XMFLOAT4(Colors::Cyan) }),
-		Vertex({ XMFLOAT3(+1.0f, -1.0f, +1.0f), XMFLOAT4(Colors::Magenta) })
+		Vertex({ XMFLOAT3(-1.0f, -1.0f, -1.0f), XMFLOAT4(Colors::White)   }),
+		Vertex({ XMFLOAT3(-1.0f,  1.0f, -1.0f), XMFLOAT4(Colors::Black)   }),
+		Vertex({ XMFLOAT3( 1.0f,  1.0f, -1.0f), XMFLOAT4(Colors::Red)     }),
+		Vertex({ XMFLOAT3( 1.0f, -1.0f, -1.0f), XMFLOAT4(Colors::Green)   }),
+		Vertex({ XMFLOAT3(-1.0f, -1.0f,  1.0f), XMFLOAT4(Colors::Blue)    }),
+		Vertex({ XMFLOAT3(-1.0f,  1.0f,  1.0f), XMFLOAT4(Colors::Yellow)  }),
+		Vertex({ XMFLOAT3( 1.0f,  1.0f,  1.0f), XMFLOAT4(Colors::Cyan)    }),
+		Vertex({ XMFLOAT3( 1.0f, -1.0f,  1.0f), XMFLOAT4(Colors::Magenta) })
 	};
 
-	const UINT64 vbByteSize = 8 * sizeof(Vertex);
+	std::array<std::uint16_t, 36> indices =
+	{
+		// front face
+		0, 1, 2,
+		0, 2, 3,
 
-	ComPtr<ID3D12Resource> vertexBufferGPU = nullptr;
-	ComPtr<ID3D12Resource> VertexBufferUploader = nullptr;
+		// back face
+		4, 6, 5,
+		4, 7, 6,
 
-	vertexBufferGPU = CreateDefaultBuffer(m_pDevice.Get(), m_CommandList.Get(), vertices.data(), vbByteSize, VertexBufferUploader);
+		// left face
+		4, 5, 1,
+		4, 1, 0,
+
+		// right face
+		3, 2, 6,
+		3, 6, 7,
+
+		// top face
+		1, 5, 6,
+		1, 6, 2,
+
+		// bottom face
+		4, 0, 3,
+		4, 3, 7
+	};
+
+	const UINT64 vbByteSize = vertices.size() * sizeof(Vertex);
+	const UINT ibByteSize = indices.size() * sizeof(std::uint16_t);
 
 	// In order to bind a vertex buffer to the pipeline, we need to create a vertex buffer view
 	// to the vertex buffer resource. Unlike an RTV(render target view), we do not need a descriptor
@@ -429,46 +535,29 @@ void DrawingD3DApp::BuildBoxGeometry()
 	// As with vertex buffers, and other Direct3D resources for that matter, before we can use it, 
 	// we need to bind it to the pipeline
 
-	std::array<std::uint16_t, 36> indices =
-	{
-		// front face
-		0, 1, 2,
-		0, 2, 3,
+	m_BoxGeo = std::make_unique<MeshGeometry>();
+	m_BoxGeo->Name = "boxGeo";
 
-		// back face
-		4, 6, 5,
-		4, 7, 6,
+	ThrowIfFailed(D3DCreateBlob(vbByteSize, &m_BoxGeo->VertexBufferCPU));
+	CopyMemory(m_BoxGeo->VertexBufferCPU->GetBufferPointer(), vertices.data(), vbByteSize);
 
-		// left face
-		4, 5, 1,
-		4, 1, 0,
+	ThrowIfFailed(D3DCreateBlob(ibByteSize, &m_BoxGeo->IndexBufferCPU));
+	CopyMemory(m_BoxGeo->IndexBufferCPU->GetBufferPointer(), indices.data(), ibByteSize);
 
-		// right face
-		3, 2, 6,
-		3, 6, 7,
+	m_BoxGeo->VertexBufferGPU = CreateDefaultBuffer(m_pDevice.Get(), m_CommandList.Get(), vertices.data(), vbByteSize, m_BoxGeo->VertexBufferUploader);
+	m_BoxGeo->IndexBufferGPU = CreateDefaultBuffer(m_pDevice.Get(), m_CommandList.Get(), indices.data(), ibByteSize, m_BoxGeo->IndexBufferUploader);
 
-		// top face
-		1, 5, 6,
-		1, 6, 2,
+	m_BoxGeo->VertexByteStride = sizeof(Vertex);
+	m_BoxGeo->VertexBufferByteSize = vbByteSize;
+	m_BoxGeo->IndexFormat = DXGI_FORMAT_R16_UINT;
+	m_BoxGeo->IndexBufferByteSize = ibByteSize;
 
-		// bottom face
-		4, 0, 3,
-		4, 3, 7
-	};
+	SubMeshGeometry subMesh;
+	subMesh.IndexCount = (UINT)indices.size();
+	subMesh.StartIndexLocation = 0;
+	subMesh.BaseVertexLocation = 0;
 
-	const UINT ibByteSize = indices.size() * sizeof(indices.front());
-
-	ComPtr<ID3D12Resource> indexBufferGPU = nullptr;
-	ComPtr<ID3D12Resource> indexBufferUploader = nullptr;
-
-	indexBufferGPU = CreateDefaultBuffer(m_pDevice.Get(), m_CommandList.Get(), indices.data(), ibByteSize, indexBufferUploader);
-
-	D3D12_INDEX_BUFFER_VIEW ibv;
-	ibv.BufferLocation = indexBufferGPU->GetGPUVirtualAddress();
-	ibv.Format = DXGI_FORMAT_R16_UINT;
-	ibv.SizeInBytes = ibByteSize;
-
-	m_CommandList->IASetIndexBuffer(&ibv);
+	m_BoxGeo->DrawArgs["box"] = subMesh;
 
 	// with indices, we must use ID3D12GraphicsCommandList::DrawIndexInstanced method instead of DrawInstanced.
 	// IndexCountPerInstance: The number of indices to draw.
@@ -481,4 +570,155 @@ void DrawingD3DApp::BuildBoxGeometry()
 
 void DrawingD3DApp::BuildPSO()
 {
+	// Most of the objects that control the state of the graphics pipeline are specified as an
+	// aggregate called a pipeline state object (PSO), which is represented by the 
+	// ID3D12PipelineState interface. To create a PSO, we first describe it by filling out 
+
+	//typedef struct D3D12_SHADER_BYTECODE
+	//{
+	//	const BYTE *pShaderByteCode;
+	//	SIZE_T BytecodeLength;
+	//} D3D12_SHADER_BYTECODE;
+
+	//typedef struct D3D12_INPUT_LAYOUT_DESC
+	//{
+	//	const D3D12_INPUT_ELEMENT_DESC *pInputelementDescs;
+	//	UINT NumElements;
+	//} D3D12_INPUT_LAYOUT_DESC;
+	
+	// a D3D12_GRAPHICS_PIPELINE_STATE_DESC instance:
+	// typedef struct D3D12_GRAPHICS_PIPLEINE_STATE_DESC
+	// {
+	//	ID3D12RootSignature *pRootSignature;					// Pointer to the root signature to be bound with this PSO
+	//																The root signature must be compatible with the shaders specified with this PSO.
+	//
+	//	D3D12_SHADER_BYTECODE VS;								// The vertex shader to bind. This is specified by the D3D12_SHADER_BYTECODE
+	//																structure which is a pointer to the compiled bytecode data, and the size of the bytecode data in bytes.
+	//
+	//	D3D12_SHADER_BYTECODE PS;								// The pixel shader to bind 
+	//	D3D12_SHADER_BYTECODE DS;								// The domain shader to bind
+	//  D3D12_SHADER_BYTECODE HS;								// the hull shader to bind
+	//  D3D12_SHADER_BYTECODE GS;								// the geometry shader to bind
+	//	D3D12_STREAM_OUTPUT_DESC StreamOutput;					// Used for an advanced technique called stream-out. we jsut zero-out this field for now
+	//  D3D12_BLEND_DESC BlendState;							// Specifies the blend state which configures blending.
+	//	UINT SampleMask;										// Multisampling can take up to 32 samples. This 3-bit integer value is used to enable/disbale the samples.
+	//																For example, if you turn of the 5th bit, then the 5th sample will not be taken. Of course disabling the 5th
+	//																sample only has any consequence if you are actually using multisampling with at least 5 samples.
+	//																If an application is using sinlge sampling, then only the first bit of this parameter matters.
+	//																Generally the default of 0xffffffff is used, which does not disable any samples.
+	//
+	//	D3D12_RASTERIZER_DESC RasterizerState;					// Specifies the rasterization state which configures the rasterizer.
+	//	D3D12_DEPTH_STENCIL_DESC DepthStencilState;				// Specifies the depth/stencils tate which configures the depth/stencil test.
+	//	D3D12_INPUT_LAYOUT_DESC InputLayout;					// an input layout description which is simply an array of D3D12_INPUT_ELEMENT_DESC elements, and the number of elements in the array.
+	//	D3D12_PRIMITIVE_TOPOLOGY_TYPE PrimitiveTopologyType;	// specifies the primitive topology type
+	//																D3D12_PRIMITIVE_TOPOLOGY_TYPE_UNDEFINED = 0
+	//																D3D12_PRIMITIVE_TOPOLOGY_TYPE_POINT		= 1
+	//																D3D12_PRIMITIVE_TOPOLOGY_TYPE_LINE		= 2
+	//																D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE	= 3
+	//																D3D12_PRIMITIVE_TOPOLOGY_TYPE_PATCH		= 4	
+	//
+	//  UINT NumRenderTargets;									// The number of render targets we are using simultaneously
+	//	DXGI_FORMAT RTVFormats[8];								// the render target formats. this is an array to support writing to multiple render targets simultaneously
+	//																this should match the settings of the render target we are using the PSO with.
+	//
+	//	DXGI_FORMAT DSVFormat;									// the format of the depth/stencil buffer. this should match the settings of the depth/stencil buffer we are using the PSO with.
+	//  DXGI_SAMPLE_DESC SampleDesc;							// Desribes the multisample count and quality level. This should match the settings of the render target we are using.
+	// } D3D12_GRAPHICS_PIPELINE_STATE_DESC;
+
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc;
+	
+	ZeroMemory(&psoDesc, sizeof(D3D12_GRAPHICS_PIPELINE_STATE_DESC));
+	psoDesc.InputLayout = { m_InputLayout.data(), (UINT)m_InputLayout.size() };
+	psoDesc.pRootSignature = m_RootSignature.Get();
+	psoDesc.VS = { reinterpret_cast<BYTE*>(m_VsByteCode->GetBufferPointer()), m_VsByteCode->GetBufferSize() };
+	psoDesc.PS = { reinterpret_cast<BYTE*>(m_PsByteCode->GetBufferPointer()), m_PsByteCode->GetBufferSize() };
+	psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
+	psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
+	psoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
+	psoDesc.SampleMask = UINT_MAX;
+	psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+	psoDesc.NumRenderTargets = 1;
+	psoDesc.RTVFormats[0] = m_BackBufferFormat;
+	psoDesc.SampleDesc.Count = m_4xMsaaEnabled ? 4 : 1;
+	psoDesc.SampleDesc.Quality = m_4xMsaaEnabled ? (m_4xMsaaQuality - 1) : 0;
+	psoDesc.DSVFormat = m_DepthStencilFormat;
+
+	ThrowIfFailed(m_pDevice->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(m_Pso.GetAddressOf())));
+
+	// This is quite a lot of state in one aggregate ID3D12PipelineState object. 
+	// We specify all these objects as an aggregate to the graphics pipeline for performance.
+	// By specifying them as an aggregate, Direct3D can validate that all the state is compatible and
+	// the driver can generate all the code up front to program the hardware state.
+	// In the Direct3D 11 state model, these render states pieces were set separately.
+	// However, the states are related. If one piece of state gets changed, it may additionally require the driver
+	// to reprogram the hardware for another piece of dependent state.As many states are
+	// changed to configure the pipeline, the state of the hardware could get reprogrammed redundantly.
+	// To avoid this redundancy, the drivers typically deferred programming the hardware state until 
+	// a draw call is issued when the entire pipeline state would be known.
+	// But this deferral requires additional bookkeeping work by the driver at runtime. 
+	// It needs to track which states have changed, and then generate the code to program the hardware state at runtime.
+	// In the new Direct3D 12 model, the driver can generate all the code needed to program the pipeline state at initialization 
+	// time because we specify the majority of pipeline state as an aggregate.
+
+	// Note: Becasue PSO validatoin and creation can be time consuming, PSOs should be generated at initialization time. 
+	// once exception to this might be to create a PSO at runtime on demand the first time it is referenced.
+	// then store it in a collectoin such as a hash table so it can quickly be fetched for future use.
+
+	// Switching between PSO:
+	// Reset specifies initial PSO.
+	// m_CommandList->Reset(m_DirectCmdListAlloc.Get(), m_Pso1.Get());
+	// Draw objects using PSO1
+	//
+	// Change PSO
+	// m_CommandList->SetPipelineState(m_PSO2.Get());
+	// Draw objects using PSO2
+	//
+	// Change PSO
+	// m_CommandList->SetPipelineState(m_PSO.Get());
+	// Draw Objects using PSO 3
+
+	// Note: PSO state changes should be kept to a minimum for performance.
+	// Draw all objects together that can use the same PSO. Do not change the PSO per draw call!
 }
+
+
+
+// typedef struct D3D12_RASTERIZER_DESC 
+// {
+//	D3D12_FILL_MODE Fillmode;	// Default: D3D12_FILL_SOLID
+//	D3D12_CULL_MODE Cullmode;	// Default: D3D12_CULL_BACK
+//	BOOL FrontCounterClockWise; // Default: false
+//	INT DepthBias;				// Default: 0
+//	FLOAT DepthBiasClamp;		// Default: 0.0f
+//	FLOAT SlopeScaledDepthBias;	// Default: 0.0f
+//	BOOL DepthClipEnable;		// Default: true
+//  BOOL ScissorEnable;			// Default: false
+//	BOOL MultisampleEnable;		// Default: false
+//	BOOL AntialiasedLineEnable;	// Default: false
+//	UINT ForcedSampleCount;		// Default: 0
+//  D3D12_CONSERVATIE__RATERIZATION_MODE ConservativeRater;	// Default: D3D12_CONSERVATIE_RASTERIZATION_MODE_OFF
+// };
+
+// FillMode: Specify D3D12_FILL_WIREFRAME for wireframe rendering or D3D12_FILL_SOLID for solid rendering.
+// CullMode: Specify D3D12_CULL_NONE to disbale culling.
+// D3D12_CULL_BACK to cul back-facing trianggles, or D3D12_CULL_FRONT to cull front facing trianges.
+// FrontCounterClockwise: Specify false if you want triangles ordered clockwise (with respect to the camera)
+// to be treated as front-cacing and triangles ordered counterclockwise (with respect to the camera) to be treated
+// as back-facing. specify true for the reverse.
+//ScissorEnable: Specify true to enable the scissor test adn false to disable it.
+
+// The following code shows how to create a rasterize state that turns on wireframe mode and siable backface culling.
+
+// CD3DX12_RASTERIZER_dESC rsDesc(D#D12_DEFAULT);
+// rsDesc.FillMode = D3D12_FILL_WIREFRAME;
+// rsDesc.CullMode = D3D12_CULL_NONE;
+
+// CD3D12_RASTERIZER_DESC is a convenience class that extends D3D12_RASTERIZER_DESC and adds some helper
+// constructors. In particular, it has a constructor that takes an object of type CD3D12_DEFAULT, 
+// which is just a dummy type used for overloading to indicate the rasterizer state members should be initialized to
+// the default values. CD3D12_DEFAULT AND D3D12_DEFAULT are defined like so:
+// struct CD3D12_DEFAULT {};
+// externs const DECLSPEC_SELECTANY CD3D12_DEFAULT D3D12_DEFAULT;
+
+
+#pragma endregion
