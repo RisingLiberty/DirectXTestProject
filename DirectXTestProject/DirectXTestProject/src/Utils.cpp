@@ -6,6 +6,7 @@
 #include <sstream>
 #include <comdef.h>
 #include <iostream>
+#include <fstream>
 
 using namespace Microsoft::WRL;
 
@@ -108,7 +109,7 @@ UINT CalculateConstantBufferByteSize(UINT byteSize)
 
 }
 
-Microsoft::WRL::ComPtr<ID3DBlob> CompileShader(const std::wstring& fileName, const D3D_SHADER_MACRO* defines, const std::string& entryPoint, const std::string& target)
+ComPtr<ID3DBlob> CompileShader(const std::wstring& fileName, const D3D_SHADER_MACRO* defines, const std::string& entryPoint, const std::string& target)
 {
 	// USe debug flags in debug mode
 	UINT compileFlags = 0;
@@ -130,3 +131,31 @@ Microsoft::WRL::ComPtr<ID3DBlob> CompileShader(const std::wstring& fileName, con
 
 	return byteCode;
 }
+
+ComPtr<ID3DBlob> LoadBinary(const std::wstring& fileName)
+{
+	std::ifstream file(fileName, std::ios::binary | std::ios::ate);
+
+	if (!file.is_open())
+	{
+		std::cout << "Failed to open file!\n";
+		return nullptr;
+	}
+
+	size_t size = file.tellg();
+
+	file.seekg(0);
+
+	//file.seekg(0, std::ios_base::end);
+	//std::ifstream::pos_type size = (int)file.tellg();
+	//file.seekg(0, std::ios_base::beg);
+
+	ComPtr<ID3DBlob> blob;
+	ThrowIfFailed(D3DCreateBlob(size, blob.GetAddressOf()));
+
+	file.read((char*)blob->GetBufferPointer(), size);
+	file.close();
+
+	return blob;
+}
+
