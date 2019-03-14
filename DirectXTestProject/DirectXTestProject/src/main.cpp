@@ -1,7 +1,10 @@
 #include <iostream>
 
-#include "InitD3DApp.h"
+//#include "InitD3DApp.h"
+#include "DrawingD3DApp.h"
 #include "Utils.h"
+
+#include <dxgidebug.h>
     
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int showCmd)
 {
@@ -21,7 +24,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	//_CrtSetBreakAlloc(...);
 #endif
 	
-	InitD3DApp app(hInstance);
+	DrawingD3DApp app(hInstance);
+
 	return app.Start();
 }
 
