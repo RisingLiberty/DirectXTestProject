@@ -1,4 +1,4 @@
-#pragma once
+#pragma region
 
 #include <d3d12.h>
 #include <DirectX/d3dx12.h>
@@ -41,7 +41,7 @@ public:
 		// the second parameter is an optional pointer to a D3D12_RANGE structure that describes the range of
 		// memory to map. specifying null maps the entire resource.
 		// the third parameter returns a pointer to the mapped data. 
-		ThrowIfFailed(m_UploadBuffer->Map(0, nullptr, reinterpret_cast<void**>(m_MappedData)));
+		ThrowIfFailed(m_UploadBuffer->Map(0, nullptr, reinterpret_cast<void**>(&m_MappedData)));
 
 		// We do not need to unmap until we are done with the resource.
 		// However, we must not write to the resource while it is in use by the GPU(synchronize!).
