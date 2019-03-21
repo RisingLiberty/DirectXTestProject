@@ -7,6 +7,8 @@
 #include <string>
 #include <unordered_map>
 
+#include <DirectXMath.h>
+
 class DxException
 {
 public:
@@ -127,7 +129,10 @@ struct MeshGeometry
 	0.0f, 0.0f, 0.0f, 1.0f\
 )
 
-int gNumFrameResources = 3;
+//#ifndef NUM_FRAME_RESOURCES
+//#define NUM_FRAME_RESOURCES
+//const int gNumFrameResources = 3;
+//#endif
 
 struct ObjectConstants
 {
@@ -192,6 +197,8 @@ struct Vertex
 	DirectX::XMFLOAT3 Pos;
 	DirectX::XMFLOAT4 Color;
 };
+
+const int gNumFrameResources = 3;
 
 // Lightweight structure stores parameters to draw a shape.
 // This will vary from app-to-app.
