@@ -22,6 +22,10 @@ protected:
 	
 	virtual void OnResize();
 
+	virtual void OnMouseDown(WPARAM btnState, int x, int y) override;
+	virtual void OnMouseUp(WPARAM btnState, int x, int y) override;
+	virtual void OnMouseMove(WPARAM btnState, int x, int y) override;
+
 private:
 	void BuildFrameResources();
 	void UpdateObjectCBs(const GameTimer& gt);
@@ -35,7 +39,7 @@ private:
 	void BuildShadersAndInputLayout();
 
 	void DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vector<RenderItem*>& renderItems);
-
+	void UpdateCamera();
 private:
 	static const int s_NumFrameResources = gNumFrameResources;
 	std::vector<std::unique_ptr<FrameResource>> m_FrameResources;
@@ -58,6 +62,11 @@ private:
 	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap> m_CbvHeap;
 	Microsoft::WRL::ComPtr<ID3D12RootSignature> m_RootSignature = nullptr;
 
+	POINT m_LastMousePos;
+
+	float m_Theta = 1.5f * DirectX::XM_PI;
+	float m_Phi = 0.2f * DirectX::XM_PI;
+	float m_Radius = 15.0f;
 
 	PassConstants m_MainPassCB;
 
