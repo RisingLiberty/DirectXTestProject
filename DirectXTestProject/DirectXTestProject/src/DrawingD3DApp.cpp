@@ -108,7 +108,7 @@ void DrawingD3DApp::Update(float dTime)
 
 	// Update the constant buffer with the latest worldViewProj matrix.
 	ObjectConstants objConstants;
-	XMStoreFloat4x4(&objConstants.WorldViewProj, XMMatrixTranspose(worldViewProj));
+	XMStoreFloat4x4(&objConstants.World, XMMatrixTranspose(worldViewProj));
 	m_ObjectConstantBuffer->CopyData(0, objConstants);
 }
 
@@ -460,7 +460,7 @@ void DrawingD3DApp::BuildBoxGeometry()
 	};
 
 	const UINT64 vbByteSize = vertices.size() * sizeof(Vertex);
-	const UINT ibByteSize = indices.size() * sizeof(std::uint16_t);
+	const UINT ibByteSize = static_cast<UINT>(indices.size() * sizeof(std::uint16_t));
 
 	// In order to bind a vertex buffer to the pipeline, we need to create a vertex buffer view
 	// to the vertex buffer resource. Unlike an RTV(render target view), we do not need a descriptor
