@@ -14,7 +14,7 @@ GeometryGenerator::Vertex::Vertex
 	const XMFLOAT3& n,
 	const XMFLOAT3& t,
 	const XMFLOAT2& uv
-):
+) :
 	Position(p),
 	Normal(n),
 	TangentU(t),
@@ -48,7 +48,7 @@ GeometryGenerator::Vertex::Vertex(const GeometryGenerator::Vertex& vertex) :
 }
 
 
-GeometryGenerator::Vertex::Vertex(const GeometryGenerator::Vertex&& vertex):
+GeometryGenerator::Vertex::Vertex(const GeometryGenerator::Vertex&& vertex) :
 	Position(vertex.Position),
 	Normal(vertex.Normal),
 	TangentU(vertex.TangentU),
@@ -171,104 +171,6 @@ GeometryGenerator::MeshData GeometryGenerator::CreateBox(float width, float heig
 	return meshData;
 }
 
-GeometryGenerator::MeshData GeometryGenerator::CreateCylinder(float bottomRadius, float topRadius, float height, uint32_t sliceCount, uint32_t stackCount)
-{
-	MeshData meshData;
-
-	// Build stacks
-
-	float stackHeight = height / stackCount;
-
-	// Amount to increment radius as we move up each stack level from bottom to top.
-	float radiusStep = (topRadius - bottomRadius) / stackCount;
-
-	uint32_t ringCount = stackCount + 1;
-
-	// Compute vertices for each stack ring starting at the bottom and moving up.
-	for (uint32_t i = 0; i < ringCount; ++i)
-	{
-		float y = 0.5f * height + i * stackHeight;
-		float radius = bottomRadius + i * radiusStep;
-
-		// Vertices of ring
-		float dTheta = 2.0f * XM_PI / sliceCount;
-
-		for (uint32_t j = 0; j <= sliceCount; ++j)
-		{
-			Vertex vertex;
-
-			float cos = cosf(j * dTheta);
-			float sin = sinf(j * dTheta);
-
-			vertex.Position = XMFLOAT3(radius*cos, y, radius*sin);
-
-			vertex.TexC.x = (float)j / sliceCount;
-			vertex.TexC.y = 1.0f - (float)i / stackCount;
-
-			// Cylinder can be parameteized as follows, where we introduce v parameter
-			// that goes in the same direction as the v tex-coord
-			// so that the bitangent goes in the same direction as the v tex-coord.
-
-			// Let r0 be the bottom radius and let r1 be the top radius.
-			// y(v) = h - hv for v in [0,1]
-			// r(v) = r1 + (r0 - r1)v
-			//
-			// x(t, v) = r(v) * cos(t)
-			// y(t, v) = h - hv
-			// z(t, v) = r(v) * sin(t)
-			//
-			// dx/dt = -r(v) * sin(t)
-			// dy/dt = 0
-			// dz/dt = r(v) * cos(t)
-			//
-			// dx/dv = (r0-r1) * cos(t)
-			// dy/dv = -h
-			// dz/dv = (r0-r1) * sin(t)
-
-			// This is unit length
-			vertex.TangentU = XMFLOAT3(-sin, 0.0f, cos);
-
-			float dRadius = bottomRadius - topRadius;
-			XMFLOAT3 bitangent(dRadius*cos, -height, dRadius * sin);
-
-			XMVECTOR tVector = XMLoadFloat3(&vertex.TangentU);
-			XMVECTOR bVector = XMLoadFloat3(&bitangent);
-			XMVECTOR nVector = XMVector3Normalize(XMVector3Cross(tVector, bVector));
-			XMStoreFloat3(&vertex.Normal, nVector);
-
-			meshData.Vertices.emplace_back(vertex);
-
-			// Note: observe that the first and last vertex of each ring is duplicated in position,
-			// but the texture coordinates are not duplicated. We have to do this so that we can apply
-			// textures to cylinders correctly.
-		}
-
-		// Add one because we duplicate the first and last vertex per ring
-		// since the texture coordinates are different
-		uint32_t ringVertexCount = sliceCount + 1;
-
-		// Compute indices for each stack
-		for (uint32_t i = 0; i < stackCount; ++i)
-		{
-			for (uint32_t j = 0; j < sliceCount; ++j)
-			{
-				meshData.Indices32.emplace_back(i * ringVertexCount + j);
-				meshData.Indices32.emplace_back((i + 1) * ringVertexCount + j);
-				meshData.Indices32.emplace_back((i + 1) * ringVertexCount + j + 1);
-				meshData.Indices32.emplace_back(i * ringVertexCount + j);
-				meshData.Indices32.emplace_back((i + 1) * ringVertexCount + j + 1);
-				meshData.Indices32.emplace_back(i * ringVertexCount + j + 1);
-			}
-		}
-
-		BuildCylinderTopCap(bottomRadius, topRadius, height, sliceCount, stackCount, meshData);
-		BuildCylinderBottomCap(bottomRadius, topRadius, height, sliceCount, stackCount, meshData);
-
-	}
-
-	return meshData;
-}
-
 GeometryGenerator::MeshData GeometryGenerator::CreateGrid(float width, float depth, uint32_t m, uint32_t n)
 {
 	MeshData meshData;
@@ -323,6 +225,8 @@ GeometryGenerator::MeshData GeometryGenerator::CreateGrid(float width, float dep
 			meshData.Indices32[k + 3] = (i + 1)*n + j;
 			meshData.Indices32[k + 4] = i * n + j + 1;
 			meshData.Indices32[k + 5] = (i + 1)*n + j + 1;
+
+			k += 6; // next quad
 		}
 	}
 
@@ -333,9 +237,7 @@ GeometryGenerator::MeshData GeometryGenerator::CreateSphere(float radius, uint32
 {
 	MeshData meshData;
 
-	//
 	// Compute the vertices stating at the top pole and moving down the stacks.
-	//
 
 	// Poles: note that there will be texture coordinate distortion as there is
 	// not a unique point on the texture map to assign to the pole when mapping
@@ -419,10 +321,8 @@ GeometryGenerator::MeshData GeometryGenerator::CreateSphere(float radius, uint32
 		}
 	}
 
-	//
 	// Compute indices for bottom stack.  The bottom stack was written last to the vertex buffer
 	// and connects the bottom pole to the bottom ring.
-	//
 
 	// South pole vertex was added last.
 	uint32_t southPoleIndex = (uint32_t)meshData.Vertices.size() - 1;
@@ -443,7 +343,7 @@ GeometryGenerator::MeshData GeometryGenerator::CreateSphere(float radius, uint32
 GeometryGenerator::MeshData GeometryGenerator::CreateGeoSphere(float radius, uint32_t numSubdivisions)
 {
 	MeshData meshData;
-	
+
 	// Put a cap on the number of subdivsions.
 	numSubdivisions = std::min<uint32_t>(numSubdivisions, 6u);
 
@@ -462,7 +362,7 @@ GeometryGenerator::MeshData GeometryGenerator::CreateGeoSphere(float radius, uin
 		XMFLOAT3(z, -x, 0.0f), XMFLOAT3(-z, -x, 0.0f)
 	};
 
-	uint32_t k[60] = 
+	uint32_t k[60] =
 	{
 		1, 4,  0,	 4, 9, 0,	4, 5, 9,	8, 5, 4,	1, 8, 4,
 		1, 10, 8,	10, 3, 8,	8, 3, 5,	3, 2, 5,	3, 7, 2,
@@ -515,6 +415,104 @@ GeometryGenerator::MeshData GeometryGenerator::CreateGeoSphere(float radius, uin
 	return meshData;
 }
 
+GeometryGenerator::MeshData GeometryGenerator::CreateCylinder(float bottomRadius, float topRadius, float height, uint32_t sliceCount, uint32_t stackCount)
+{
+	MeshData meshData;
+
+	// Build stacks
+
+	float stackHeight = height / stackCount;
+
+	// Amount to increment radius as we move up each stack level from bottom to top.
+	float radiusStep = (topRadius - bottomRadius) / stackCount;
+
+	uint32_t ringCount = stackCount + 1;
+
+	// Compute vertices for each stack ring starting at the bottom and moving up.
+	for (uint32_t i = 0; i < ringCount; ++i)
+	{
+		float y = -0.5f * height + i * stackHeight;
+		float radius = bottomRadius + i * radiusStep;
+
+		// Vertices of ring
+		float dTheta = 2.0f * XM_PI / sliceCount;
+
+		for (uint32_t j = 0; j <= sliceCount; ++j)
+		{
+			Vertex vertex;
+
+			float cos = cosf(j * dTheta);
+			float sin = sinf(j * dTheta);
+
+			vertex.Position = XMFLOAT3(radius*cos, y, radius*sin);
+
+			vertex.TexC.x = (float)j / sliceCount;
+			vertex.TexC.y = 1.0f - (float)i / stackCount;
+
+			// Cylinder can be parameteized as follows, where we introduce v parameter
+			// that goes in the same direction as the v tex-coord
+			// so that the bitangent goes in the same direction as the v tex-coord.
+
+			// Let r0 be the bottom radius and let r1 be the top radius.
+			// y(v) = h - hv for v in [0,1]
+			// r(v) = r1 + (r0 - r1)v
+			//
+			// x(t, v) = r(v) * cos(t)
+			// y(t, v) = h - hv
+			// z(t, v) = r(v) * sin(t)
+			//
+			// dx/dt = -r(v) * sin(t)
+			// dy/dt = 0
+			// dz/dt = r(v) * cos(t)
+			//
+			// dx/dv = (r0-r1) * cos(t)
+			// dy/dv = -h
+			// dz/dv = (r0-r1) * sin(t)
+
+			// This is unit length
+			vertex.TangentU = XMFLOAT3(-sin, 0.0f, cos);
+
+			float dRadius = bottomRadius - topRadius;
+			XMFLOAT3 bitangent(dRadius*cos, -height, dRadius * sin);
+
+			XMVECTOR tVector = XMLoadFloat3(&vertex.TangentU);
+			XMVECTOR bVector = XMLoadFloat3(&bitangent);
+			XMVECTOR nVector = XMVector3Normalize(XMVector3Cross(tVector, bVector));
+			XMStoreFloat3(&vertex.Normal, nVector);
+
+			meshData.Vertices.push_back(vertex);
+
+			// Note: observe that the first and last vertex of each ring is duplicated in position,
+			// but the texture coordinates are not duplicated. We have to do this so that we can apply
+			// textures to cylinders correctly.
+		}
+	}
+
+	// Add one because we duplicate the first and last vertex per ring
+	// since the texture coordinates are different
+	uint32_t ringVertexCount = sliceCount + 1;
+
+	// Compute indices for each stack
+	for (uint32_t i = 0; i < stackCount; ++i)
+	{
+		for (uint32_t j = 0; j < sliceCount; ++j)
+		{
+			meshData.Indices32.push_back(i * ringVertexCount + j);
+			meshData.Indices32.push_back((i + 1) * ringVertexCount + j);
+			meshData.Indices32.push_back((i + 1) * ringVertexCount + j + 1);
+			meshData.Indices32.push_back(i * ringVertexCount + j);
+			meshData.Indices32.push_back((i + 1) * ringVertexCount + j + 1);
+			meshData.Indices32.push_back(i * ringVertexCount + j + 1);
+		}
+	}
+
+	BuildCylinderTopCap(bottomRadius, topRadius, height, sliceCount, stackCount, meshData);
+	BuildCylinderBottomCap(bottomRadius, topRadius, height, sliceCount, stackCount, meshData);
+
+
+	return meshData;
+}
+
 void GeometryGenerator::BuildCylinderTopCap(float bottomRadius, float topRadius, float height, uint32_t sliceCount, uint32_t stackCount, MeshData& meshData)
 {
 	uint32_t baseIndex = (uint32_t)meshData.Vertices.size();
@@ -536,16 +534,16 @@ void GeometryGenerator::BuildCylinderTopCap(float bottomRadius, float topRadius,
 	}
 
 	// Cap center vertex.
-	meshData.Vertices.emplace_back(Vertex(0.0f, y, 0.0f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.5f, 0.5f));
+	meshData.Vertices.push_back(Vertex(0.0f, y, 0.0f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.5f, 0.5f));
 
 	// Index of center vertex.
-	uint32_t centerIndex = (uint32_t)centerIndex = (uint32_t)meshData.Vertices.size() - 1;
+	uint32_t centerIndex = (uint32_t)meshData.Vertices.size() - 1;
 
 	for (uint32_t i = 0; i < sliceCount; ++i)
 	{
-		meshData.Indices32.emplace_back(centerIndex);
-		meshData.Indices32.emplace_back(baseIndex + i + 1);
-		meshData.Indices32.emplace_back(baseIndex + i);
+		meshData.Indices32.push_back(centerIndex);
+		meshData.Indices32.push_back(baseIndex + i + 1);
+		meshData.Indices32.push_back(baseIndex + i);
 	}
 }
 
@@ -568,20 +566,20 @@ void GeometryGenerator::BuildCylinderBottomCap(float bottomRadius, float topRadi
 		float u = x / height + 0.5f;
 		float v = z / height + 0.5f;
 
-		meshData.Vertices.emplace_back(Vertex(x, y, z, 0.0f, -1.0f, 0.0f, 1.0f, 0.0f, 0.0f, u, v));
+		meshData.Vertices.push_back(Vertex(x, y, z, 0.0f, -1.0f, 0.0f, 1.0f, 0.0f, 0.0f, u, v));
 	}
 
 	// Cap center vertex
-	meshData.Vertices.emplace_back(Vertex(0.0f, y, 0.0f, 0.0f, -1.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.5f, 0.5f));
+	meshData.Vertices.push_back(Vertex(0.0f, y, 0.0f, 0.0f, -1.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.5f, 0.5f));
 
 	// Cache the index of center vertex
 	uint32_t centerIndex = (uint32_t)meshData.Vertices.size() - 1;
 
 	for (uint32_t i = 0; i < sliceCount; ++i)
 	{
-		meshData.Indices32.emplace_back(centerIndex);
-		meshData.Indices32.emplace_back(baseIndex + i);
-		meshData.Indices32.emplace_back(baseIndex + i + 1);
+		meshData.Indices32.push_back(centerIndex);
+		meshData.Indices32.push_back(baseIndex + i);
+		meshData.Indices32.push_back(baseIndex + i + 1);
 	}
 }
 
@@ -603,7 +601,7 @@ void GeometryGenerator::Subdivide(MeshData& meshData)
 	// *-----*-----*
 	// v0    m2     v2
 
-	uint32_t numTris = (uint32_t)(inputCopy.Indices32.size() * 0.3f);
+	uint32_t numTris = (uint32_t)inputCopy.Indices32.size() / 3;
 	for (uint32_t i = 0; i < numTris; ++i)
 	{
 		Vertex v0 = inputCopy.Vertices[inputCopy.Indices32[i * 3 + 0]];
