@@ -401,7 +401,7 @@ void DrawingD3DAppII::BuildShapeGeometry()
 	geometry->DrawArgs["sphere"] = sphereSubMesh;
 	geometry->DrawArgs["cylinder"] = cylinderSubmesh;
 
-	
+
 	m_Geometries[geometry->Name] = std::move(geometry);
 }
 
@@ -417,7 +417,6 @@ void DrawingD3DAppII::BuildRenderItems()
 	boxRenderItem->StartIndexLocation = boxRenderItem->Geometry->DrawArgs["box"].StartIndexLocation;
 	boxRenderItem->BaseVertexLocation = boxRenderItem->Geometry->DrawArgs["box"].BaseVertexLocation;
 	
-	//m_RenderItems.emplace_back(boxRenderItem));
 	m_RenderItems.push_back(std::move(boxRenderItem));
 
 	std::unique_ptr<RenderItem> gridRenderItem = std::make_unique<RenderItem>();
@@ -464,7 +463,7 @@ void DrawingD3DAppII::BuildRenderItems()
 		leftSphereRenderItem->Geometry = m_Geometries["shapeGeo"].get();
 		leftSphereRenderItem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 		leftSphereRenderItem->IndexCount = leftSphereRenderItem->Geometry->DrawArgs["sphere"].IndexCount;
-		leftSphereRenderItem->StartIndexLocation = leftSphereRenderItem->Geometry->DrawArgs["cylinder"].StartIndexLocation;
+		leftSphereRenderItem->StartIndexLocation = leftSphereRenderItem->Geometry->DrawArgs["sphere"].StartIndexLocation;
 		leftSphereRenderItem->BaseVertexLocation = leftSphereRenderItem->Geometry->DrawArgs["sphere"].BaseVertexLocation;
 
 		XMStoreFloat4x4(&rightCylinderRenderItem->World, rightCylinderWorld);
@@ -480,7 +479,7 @@ void DrawingD3DAppII::BuildRenderItems()
 		rightSphereRenderItem->Geometry = m_Geometries["shapeGeo"].get();
 		rightSphereRenderItem->PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 		rightSphereRenderItem->IndexCount = rightSphereRenderItem->Geometry->DrawArgs["sphere"].IndexCount;
-		rightSphereRenderItem->StartIndexLocation = rightSphereRenderItem->Geometry->DrawArgs["cylinder"].StartIndexLocation;
+		rightSphereRenderItem->StartIndexLocation = rightSphereRenderItem->Geometry->DrawArgs["sphere"].StartIndexLocation;
 		rightSphereRenderItem->BaseVertexLocation = rightSphereRenderItem->Geometry->DrawArgs["sphere"].BaseVertexLocation;
 
 		m_RenderItems.push_back(std::move(leftCylinderRenderItem));
@@ -619,8 +618,9 @@ void DrawingD3DAppII::BuildPsos()
 		m_Shaders["opaquePS"]->GetBufferSize()
 	};
 	opaquePsoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
-	opaquePsoDesc.RasterizerState.FillMode = D3D12_FILL_MODE_WIREFRAME;
+	opaquePsoDesc.RasterizerState.FillMode = D3D12_FILL_MODE_SOLID;
 	opaquePsoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
+	opaquePsoDesc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
 	opaquePsoDesc.SampleMask = UINT_MAX;
 	opaquePsoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
 	opaquePsoDesc.NumRenderTargets = 1;
