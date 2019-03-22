@@ -131,6 +131,7 @@
     <ClCompile Include="src\DrawingD3DAppII.cpp" />
     <ClCompile Include="src\FrameResource.cpp" />
     <ClCompile Include="src\GameTimer.cpp" />
+    <ClCompile Include="src\GeometryGenerator.cpp" />
     <ClCompile Include="src\InitD3DApp.cpp" />
     <ClCompile Include="src\main.cpp" />
     <ClCompile Include="src\Utils.cpp" />
@@ -141,6 +142,7 @@
     <ClInclude Include="src\DrawingD3DAppII.h" />
     <ClInclude Include="src\FrameResource.h" />
     <ClInclude Include="src\GameTimer.h" />
+    <ClInclude Include="src\GeometryGenerator.h" />
     <ClInclude Include="src\InitD3DApp.h" />
     <ClInclude Include="src\UploadBuffer.h" />
     <ClInclude Include="src\Utils.h" />
