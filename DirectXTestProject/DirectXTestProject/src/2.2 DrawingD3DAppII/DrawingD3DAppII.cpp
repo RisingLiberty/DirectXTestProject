@@ -1,15 +1,15 @@
 #include "DrawingD3DAppII.h"
-#include "GeometryGenerator.h"
+#include "1.0 Core/GeometryGenerator.h"
 
 #include <DirectXColors.h>
 
-#include "Utils.h"
+#include "1.0 Core/Utils.h"
 
 using namespace DirectX;
 using namespace Microsoft::WRL;
 
 DrawingD3DAppII::DrawingD3DAppII(HINSTANCE hInstance):
-	D3DApp(hInstance)
+	D3DAppBase(hInstance)
 {
 	m_AppName = L"Drawing D3D App II";
 }
@@ -43,7 +43,7 @@ HRESULT DrawingD3DAppII::Initialize()
 
 void DrawingD3DAppII::Update(const float dTime)
 {
-	this->UpdateCamera();
+	D3DAppBase::Update(dTime);
 
 	// Cycle through the circular frame resource array.
 	m_CurrentFrameResourceIndex = (m_CurrentFrameResourceIndex + 1) % s_NumFrameResources;
@@ -140,61 +140,6 @@ void DrawingD3DAppII::Draw()
 	// then the CPU will have to wait at some point.
 	// This is the desired situation, as the GPU is being fully utilized.
 	// The extra CPU cycles can always be used for other parts of the game such as AI, physics, and game play logic.
-}
-
-void DrawingD3DAppII::OnResize()
-{
-	D3DApp::OnResize();
-
-	// The window resized, so update the aspect ratio and recompute the projection matrix.
-	XMMATRIX P = XMMatrixPerspectiveFovLH(0.25f*XM_PI, this->GetAspectRatio(), 1.0f, 1000.0f);
-	XMStoreFloat4x4(&m_Proj, P);
-}
-
-void DrawingD3DAppII::OnMouseDown(WPARAM btnState, int x, int y)
-{
-	m_LastMousePos.x = x;
-	m_LastMousePos.y = y;
-
-	SetCapture(m_WindowHandle);
-}
-
-void DrawingD3DAppII::OnMouseUp(WPARAM btnState, int x, int y)
-{
-	ReleaseCapture();
-
-}
-
-void DrawingD3DAppII::OnMouseMove(WPARAM btnState, int x, int y)
-{
-	if ((btnState & MK_LBUTTON) != 0)
-	{
-		// Make each pixel correspond to a quarter of a degree.
-		float dx = XMConvertToRadians(0.25f*static_cast<float>(x - m_LastMousePos.x));
-		float dy = XMConvertToRadians(0.25f*static_cast<float>(y - m_LastMousePos.y));
-
-		// Update angles based on input to orbit camera around box.
-		m_Theta += dx;
-		m_Phi += dy;
-
-		// Restrict the angle m_Phi.
-		m_Phi = Clamp(m_Phi, 0.1f, XM_PI - 0.1f);
-	}
-	else if ((btnState & MK_RBUTTON) != 0)
-	{
-		// Make each pixel correspond to 0.2 unit in the scene.
-		float dx = 0.05f*static_cast<float>(x - m_LastMousePos.x);
-		float dy = 0.05f*static_cast<float>(y - m_LastMousePos.y);
-
-		// Update the camera radius based on input.
-		m_Radius += dx - dy;
-
-		// Restrict the radius.
-		m_Radius = Clamp(m_Radius, 5.0f, 150.0f);
-	}
-
-	m_LastMousePos.x = x;
-	m_LastMousePos.y = y;
 }
 
 void DrawingD3DAppII::BuildFrameResources()
@@ -642,20 +587,4 @@ void DrawingD3DAppII::BuildShadersAndInputLayout()
 		{"POSITION", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0},
 		{"COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0}
 	}};
-}
-
-void DrawingD3DAppII::UpdateCamera()
-{
-	// convert spherical to cartesian coordinates
-	m_EyePos.x = m_Radius * sinf(m_Phi)*cosf(m_Theta);
-	m_EyePos.z = m_Radius * sinf(m_Phi)*sinf(m_Theta);
-	m_EyePos.y = m_Radius * cosf(m_Phi);
-
-	// Build the view matrix
-	XMVECTOR pos = XMVectorSet(m_EyePos.x, m_EyePos.y, m_EyePos.z, 1.0f);
-	XMVECTOR target = XMVectorZero();
-	XMVECTOR up = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);
-
-	XMMATRIX view = XMMatrixLookAtLH(pos, target, up);
-	XMStoreFloat4x4(&m_View, view);
 }

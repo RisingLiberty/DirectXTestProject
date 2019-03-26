@@ -1,9 +1,9 @@
 #pragma once
 
-#include "D3DApp.h"
-#include "UploadBuffer.h"
+#include "1.0 Core/D3DApp.h"
+#include "1.0 Core/UploadBuffer.h"
 
-#include "Utils.h"
+#include "1.0 Core/Utils.h"
 
 class DrawingD3DApp : public D3DApp
 {

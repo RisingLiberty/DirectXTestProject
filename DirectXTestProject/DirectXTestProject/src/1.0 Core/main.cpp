@@ -2,7 +2,7 @@
 
 //#include "InitD3DApp.h"
 //#include "DrawingD3DApp.h"
-#include "DrawingD3DAppII.h"
+#include "2.2 DrawingD3DAppII/DrawingD3DAppII.h"
 #include "Utils.h"
 
 #include <dxgidebug.h>

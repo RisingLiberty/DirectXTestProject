@@ -3,7 +3,7 @@
 
 #include "InitD3DApp.h"
 
-#include "Utils.h"
+#include "1.0 Core/Utils.h"
 
 InitD3DApp::InitD3DApp(HINSTANCE instance) :
 	D3DApp(instance)
