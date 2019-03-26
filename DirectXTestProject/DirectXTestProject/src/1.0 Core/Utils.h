@@ -231,3 +231,6 @@ struct RenderItem
 	int BaseVertexLocation = 0;
 };
 
+int Rand(int a, int b);
+float RandF();
+float RandF(float a, float b);

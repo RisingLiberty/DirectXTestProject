@@ -1,5 +1,8 @@
 #include "D3DAppBase.h"
 
+#include "FrameResource.h"
+#include <iostream>
+
 using namespace DirectX;
 
 D3DAppBase::D3DAppBase(HINSTANCE hInstance):
@@ -12,6 +15,23 @@ void D3DAppBase::Update(float dTime)
 {
 	// Nothing to implement
 	this->UpdateCamera();
+
+	// Cycle through the circular frame resource array.
+	m_CurrentFrameResourceIndex = (m_CurrentFrameResourceIndex + 1) % s_NumFrameResources;
+	m_CurrentFrameResource = m_FrameResources[m_CurrentFrameResourceIndex].get();
+
+	// Has the GPU finished processing the commands of the current frame resource?
+	// If not, wait untill the GPU has completed commands up to this fence point.
+	if (m_CurrentFrameResource->Fence != 0 && m_pFence->GetCompletedValue() < m_CurrentFrameResource->Fence)
+	{
+		HANDLE eventHandle = CreateEventExW(nullptr, false, false, EVENT_ALL_ACCESS);
+		ThrowIfFailed(m_pFence->SetEventOnCompletion(m_CurrentFrameResource->Fence, eventHandle));
+		WaitForSingleObject(eventHandle, INFINITE);
+		CloseHandle(eventHandle);
+	}
+
+	this->UpdateObjectCBs(m_GameTimer);
+	this->UpdateMainPassCB(m_GameTimer);
 }
 
 void D3DAppBase::Draw(float dTime)
@@ -89,4 +109,56 @@ void D3DAppBase::UpdateCamera()
 
 	XMMATRIX view = XMMatrixLookAtLH(pos, target, up);
 	XMStoreFloat4x4(&m_View, view);
+}
+
+void D3DAppBase::UpdateObjectCBs(const GameTimer& gt)
+{
+	UploadBuffer<ObjectConstants>* currentObjectCB = m_CurrentFrameResource->ObjectCB.get();
+
+	for (const std::unique_ptr<RenderItem>& pRenderItem : m_RenderItems)
+	{
+		// Only update the cbuffer data if the constants have changed.
+		// This needs to be tracked per frame resource.
+		if (pRenderItem->NumFramesDirty > 0)
+		{
+			XMMATRIX world = XMLoadFloat4x4(&pRenderItem->World);
+
+			ObjectConstants objConstants;
+			XMStoreFloat4x4(&objConstants.World, XMMatrixTranspose(world));
+
+			currentObjectCB->CopyData(pRenderItem->ObjCBIndex, objConstants);
+
+			// Next FrameResource need to be updated too
+			pRenderItem->NumFramesDirty--;
+		}
+	}
+}
+
+void D3DAppBase::UpdateMainPassCB(const GameTimer& gt)
+{
+	XMMATRIX view = XMLoadFloat4x4(&m_View);
+	XMMATRIX proj = XMLoadFloat4x4(&m_Proj);
+
+	XMMATRIX viewProj = XMMatrixMultiply(view, proj);
+	XMMATRIX invView = XMMatrixInverse(&XMMatrixDeterminant(view), view);
+	XMMATRIX invProj = XMMatrixInverse(&XMMatrixDeterminant(proj), proj);
+
+	XMMATRIX invViewProj = XMMatrixInverse(&XMMatrixDeterminant(viewProj), viewProj);
+
+	XMStoreFloat4x4(&m_MainPassCB.View, XMMatrixTranspose(view));
+	XMStoreFloat4x4(&m_MainPassCB.InvView, XMMatrixTranspose(invView));
+	XMStoreFloat4x4(&m_MainPassCB.Proj, XMMatrixTranspose(proj));
+	XMStoreFloat4x4(&m_MainPassCB.InvProj, XMMatrixTranspose(invProj));
+	XMStoreFloat4x4(&m_MainPassCB.ViewProj, XMMatrixTranspose(viewProj));
+	XMStoreFloat4x4(&m_MainPassCB.InvViewProj, XMMatrixTranspose(invViewProj));
+	m_MainPassCB.EyePosW = m_EyePos;
+	m_MainPassCB.RenderTargetSize = XMFLOAT2((float)WIDTH, (float)HEIGHT);
+	m_MainPassCB.InvRenderTargetSize = XMFLOAT2(1.0f / WIDTH, 1.0f / HEIGHT);
+	m_MainPassCB.NearZ = 1.0f;
+	m_MainPassCB.FarZ = 1000.0f;
+	m_MainPassCB.TotalTime = gt.GetGameTime();
+	m_MainPassCB.DeltaTime = gt.GetDeltaTime();
+
+	UploadBuffer<PassConstants>* currPassCB = m_CurrentFrameResource->PassCB.get();
+	currPassCB->CopyData(0, m_MainPassCB);
 }

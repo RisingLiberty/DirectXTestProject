@@ -16,7 +16,7 @@
 struct FrameResource
 {
 public:
-	FrameResource(ID3D12Device* device, UINT passCount, UINT objectCount);
+	FrameResource(ID3D12Device* device, UINT passCount, UINT objectCount, UINT waveVertCount = 1);
 	FrameResource(const FrameResource& other) = delete;
 	FrameResource& operator=(const FrameResource& other) = delete;
 	~FrameResource();
@@ -29,6 +29,12 @@ public:
 	// So each frame needs their own constant buffers
 	std::unique_ptr<UploadBuffer<PassConstants>> PassCB = nullptr;
 	std::unique_ptr<UploadBuffer<ObjectConstants>> ObjectCB = nullptr;
+
+	// Temp value for DrawingD3DAppIII
+	// We cannot update a dynamic vertex buffer untill the GPU is done processing
+	// the commands that reference it. So each frame needs their own
+	std::unique_ptr<UploadBuffer<Vertex>> WavesVB = nullptr;
+
 
 	// Frence value to mark commands up to this fence point.
 	// This lets us check if these frame resources are still in use by the GPU.

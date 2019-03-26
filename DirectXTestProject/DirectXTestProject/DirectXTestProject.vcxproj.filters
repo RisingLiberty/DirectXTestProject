@@ -15,60 +15,78 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="src\main.cpp">
+    <ClCompile Include="src\2.1 DrawingD3DApp\DrawingD3DApp.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\GameTimer.cpp">
+    <ClCompile Include="src\1.1 InitD3D\InitD3DApp.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\D3DApp.cpp">
+    <ClCompile Include="src\1.0 Core\D3DApp.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\Utils.cpp">
+    <ClCompile Include="src\1.0 Core\D3DAppBase.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\DrawingD3DApp.cpp">
+    <ClCompile Include="src\1.0 Core\FrameResource.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\InitD3DApp.cpp">
+    <ClCompile Include="src\1.0 Core\GameTimer.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\FrameResource.cpp">
+    <ClCompile Include="src\1.0 Core\GeometryGenerator.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\DrawingD3DAppII.cpp">
+    <ClCompile Include="src\1.0 Core\main.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\GeometryGenerator.cpp">
+    <ClCompile Include="src\1.0 Core\Utils.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\2.2 DrawingD3DAppII\DrawingD3DAppII.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\2.3 DrawingD3DAppIII\DrawingD3DAppIII.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\2.3 DrawingD3DAppIII\Waves.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="src\GameTimer.h">
+    <ClInclude Include="src\2.1 DrawingD3DApp\DrawingD3DApp.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\D3DApp.h">
+    <ClInclude Include="src\1.1 InitD3D\InitD3DApp.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\Utils.h">
+    <ClInclude Include="src\1.0 Core\D3DApp.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\DrawingD3DApp.h">
+    <ClInclude Include="src\1.0 Core\D3DAppBase.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\UploadBuffer.h">
+    <ClInclude Include="src\1.0 Core\FrameResource.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\InitD3DApp.h">
+    <ClInclude Include="src\1.0 Core\GameTimer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\FrameResource.h">
+    <ClInclude Include="src\1.0 Core\GeometryGenerator.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\DrawingD3DAppII.h">
+    <ClInclude Include="src\1.0 Core\UploadBuffer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\GeometryGenerator.h">
+    <ClInclude Include="src\1.0 Core\Utils.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\2.2 DrawingD3DAppII\DrawingD3DAppII.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\2.3 DrawingD3DAppIII\DrawingD3DAppIII.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\2.3 DrawingD3DAppIII\Waves.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

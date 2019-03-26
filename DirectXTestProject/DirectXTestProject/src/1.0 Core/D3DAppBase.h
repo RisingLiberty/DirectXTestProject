@@ -6,7 +6,7 @@
 
 #include "Utils.h"
 
-struct FrameResource;
+#include "FrameResource.h"
 
 class D3DAppBase : public D3DApp
 {
@@ -29,6 +29,10 @@ protected:
 	virtual void BuildPsos() = 0;
 	virtual void BuildShadersAndInputLayout() = 0;
 
+	virtual void UpdateObjectCBs(const GameTimer& gt);
+	virtual void UpdateMainPassCB(const GameTimer& gt);
+
+
 protected:
 	DirectX::XMFLOAT3 m_EyePos = { 0.0f, 0.0f, 0.0f };
 	DirectX::XMFLOAT4X4 m_View = MAT_4_IDENTITY;
@@ -50,6 +54,14 @@ protected:
 	FrameResource* m_CurrentFrameResource = nullptr;
 
 	std::unordered_map<std::string, std::unique_ptr<MeshGeometry>> m_Geometries;
+
+	static const int s_NumFrameResources = gNumFrameResources;
+	std::vector<std::unique_ptr<FrameResource>> m_FrameResources;
+	int m_CurrentFrameResourceIndex = 0;
+
+	PassConstants m_MainPassCB;
+
+	std::vector<std::unique_ptr<RenderItem>> m_RenderItems;
 
 private:
 	void UpdateCamera();

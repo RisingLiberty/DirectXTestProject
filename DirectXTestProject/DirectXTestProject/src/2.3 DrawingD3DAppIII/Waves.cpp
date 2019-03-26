@@ -6,7 +6,7 @@
 
 using namespace DirectX;
 
-Waves::Waves(int numRows, int numColumns, float spatialStep, float timeStep, float speed, float damping) :
+Waves::Waves(int numRows, int numColumns, float spatialStep, float timeStep, float speed, float damping):
 	m_NumRows(numRows),
 	m_NumColumns(numColumns),
 	m_VertexCount(numRows*numColumns),
@@ -14,32 +14,32 @@ Waves::Waves(int numRows, int numColumns, float spatialStep, float timeStep, flo
 	m_TimeStep(timeStep),
 	m_SpatialStep(spatialStep)
 {
-	float d = damping * timeStep * 2.0f;
+	float d = damping * timeStep + 2.0f;
 	float e = (speed*speed)*(timeStep*timeStep) / (spatialStep*spatialStep);
 	m_K1 = (damping*timeStep - 2.0f) / d;
-	m_K2 = (4.0f - 8.0f * e) / d;
-	m_K3 = (2.0f * e) / d;
+	m_K2 = (4.0f - 8.0f*e) / d;
+	m_K3 = (2.0f*e) / d;
 
-	m_PreviousSolution.resize(numRows * numColumns);
-	m_CurrentSolution.resize(numRows * numColumns);
-	m_Normals.resize(numRows * numColumns);
-	m_TangentX.resize(numRows * numColumns);
+	m_PreviousSolution.resize(numRows*numColumns);
+	m_CurrentSolution.resize(numRows*numColumns);
+	m_Normals.resize(numRows*numColumns);
+	m_TangentX.resize(numRows*numColumns);
 
 	// Generate grid vertices in system memory
+	float halfWidth = (numColumns - 1)*spatialStep*0.5f;
+	float halfDepth = (numRows - 1)*spatialStep*0.5f;
 
-	float halfWidth = (numRows - 1) * spatialStep * 0.5f;
-	float halfDepth = (numColumns - 1) * spatialStep * 0.5f;
-	for (int column = 0; column < numColumns; ++column)
+	for (int i = 0; i < numRows; ++i)
 	{
-		float z = halfDepth - column * spatialStep;
-		for (int row = 0; row < numRows; ++row)
+		float z = halfDepth - i * spatialStep;
+		for (int j = 0; j < numColumns; ++j)
 		{
-			float x = -halfWidth + row * spatialStep;
+			float x = -halfWidth + j * spatialStep;
 
-			m_PreviousSolution[column*numColumns + row] = XMFLOAT3(x, 0.0f, z);
-			m_CurrentSolution[column*numColumns + row] = XMFLOAT3(x, 0.0f, z);
-			m_Normals[column*numColumns + row] = XMFLOAT3(0.0f, 1.0f, 0.0f);
-			m_TangentX[column * numColumns + row] = XMFLOAT3(1.0f, 0.0f, 0.0f);
+			m_PreviousSolution[i*numColumns + j] = XMFLOAT3(x, 0.0f, z);
+			m_CurrentSolution[i*numColumns + j] = XMFLOAT3(x, 0.0f, z);
+			m_Normals[i*numColumns + j] = XMFLOAT3(0.0f, 1.0f, 0.0f);
+			m_TangentX[i*numColumns + j] = XMFLOAT3(1.0f, 0.0f, 0.0f);
 		}
 	}
 }

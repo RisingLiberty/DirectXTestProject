@@ -1,8 +1,23 @@
 #include <iostream>
 
-//#include "InitD3DApp.h"
-//#include "DrawingD3DApp.h"
+#define DRAWING_D3D_3
+
+#ifdef INITIALIZE_DIRECT_X
+#include "1.1 InitD3D/InitD3DApp.h"
+#endif
+
+#ifdef DRAWING_D3D_1
+#include "2.1 DrawingD3DApp/DrawingD3DApp.h"
+#endif
+
+#ifdef DRAWING_D3D_2
 #include "2.2 DrawingD3DAppII/DrawingD3DAppII.h"
+#endif
+
+#ifdef DRAWING_D3D_3
+#include "2.3 DrawingD3DAppIII/DrawingD3DAppIII.h"
+#endif
+
 #include "Utils.h"
 
 #include <dxgidebug.h>
@@ -25,9 +40,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	//_CrtSetBreakAlloc(...);
 #endif
 	
-	DrawingD3DAppII app(hInstance);
+	D3DApp* app = new DrawingD3DAppIII(hInstance);
 
-	return app.Start();
+	return app->Start();
 }
 
 int main()

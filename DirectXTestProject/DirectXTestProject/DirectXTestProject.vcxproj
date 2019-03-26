@@ -70,7 +70,7 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <IncludePath>$(SolutionDir)Include;$(VC_IncludePath);$(WindowsSDK_IncludePath);</IncludePath>
+    <IncludePath>$(ProjectDir)/src;$(SolutionDir)Include;$(VC_IncludePath);$(WindowsSDK_IncludePath);</IncludePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <IncludePath>$(SolutionDir)Include;$(VC_IncludePath);$(WindowsSDK_IncludePath);</IncludePath>
@@ -126,26 +126,32 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="src\D3DApp.cpp" />
-    <ClCompile Include="src\DrawingD3DApp.cpp" />
-    <ClCompile Include="src\DrawingD3DAppII.cpp" />
-    <ClCompile Include="src\FrameResource.cpp" />
-    <ClCompile Include="src\GameTimer.cpp" />
-    <ClCompile Include="src\GeometryGenerator.cpp" />
-    <ClCompile Include="src\InitD3DApp.cpp" />
-    <ClCompile Include="src\main.cpp" />
-    <ClCompile Include="src\Utils.cpp" />
+    <ClCompile Include="src\1.0 Core\D3DApp.cpp" />
+    <ClCompile Include="src\1.0 Core\D3DAppBase.cpp" />
+    <ClCompile Include="src\2.1 DrawingD3DApp\DrawingD3DApp.cpp" />
+    <ClCompile Include="src\2.2 DrawingD3DAppII\DrawingD3DAppII.cpp" />
+    <ClCompile Include="src\2.3 DrawingD3DAppIII\DrawingD3DAppIII.cpp" />
+    <ClCompile Include="src\1.0 Core\FrameResource.cpp" />
+    <ClCompile Include="src\1.0 Core\GameTimer.cpp" />
+    <ClCompile Include="src\1.0 Core\GeometryGenerator.cpp" />
+    <ClCompile Include="src\1.1 InitD3D\InitD3DApp.cpp" />
+    <ClCompile Include="src\1.0 Core\main.cpp" />
+    <ClCompile Include="src\1.0 Core\Utils.cpp" />
+    <ClCompile Include="src\2.3 DrawingD3DAppIII\Waves.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="src\DrawingD3DApp.h" />
-    <ClInclude Include="src\D3DApp.h" />
-    <ClInclude Include="src\DrawingD3DAppII.h" />
-    <ClInclude Include="src\FrameResource.h" />
-    <ClInclude Include="src\GameTimer.h" />
-    <ClInclude Include="src\GeometryGenerator.h" />
-    <ClInclude Include="src\InitD3DApp.h" />
-    <ClInclude Include="src\UploadBuffer.h" />
-    <ClInclude Include="src\Utils.h" />
+    <ClInclude Include="src\1.0 Core\D3DAppBase.h" />
+    <ClInclude Include="src\2.1 DrawingD3DApp\DrawingD3DApp.h" />
+    <ClInclude Include="src\1.0 Core\D3DApp.h" />
+    <ClInclude Include="src\2.2 DrawingD3DAppII\DrawingD3DAppII.h" />
+    <ClInclude Include="src\2.3 DrawingD3DAppIII\DrawingD3DAppIII.h" />
+    <ClInclude Include="src\1.0 Core\FrameResource.h" />
+    <ClInclude Include="src\1.0 Core\GameTimer.h" />
+    <ClInclude Include="src\1.0 Core\GeometryGenerator.h" />
+    <ClInclude Include="src\1.1 InitD3D\InitD3DApp.h" />
+    <ClInclude Include="src\1.0 Core\UploadBuffer.h" />
+    <ClInclude Include="src\1.0 Core\Utils.h" />
+    <ClInclude Include="src\2.3 DrawingD3DAppIII\Waves.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

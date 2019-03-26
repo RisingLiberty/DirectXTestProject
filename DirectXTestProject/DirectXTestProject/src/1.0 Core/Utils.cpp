@@ -159,3 +159,18 @@ ComPtr<ID3DBlob> LoadBinary(const std::wstring& fileName)
 	return blob;
 }
 
+
+int Rand(int a, int b)
+{
+	return a + rand() % ((b - a) + 1);
+}
+
+float RandF()
+{
+	return (float)(rand()) / (float)RAND_MAX;
+}
+
+float RandF(float a, float b)
+{
+	return a + RandF()*(b - a);
+}
