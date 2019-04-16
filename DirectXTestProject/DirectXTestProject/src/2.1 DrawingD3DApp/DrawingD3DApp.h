@@ -31,8 +31,6 @@ private:
 	void BuildPSO();
 
 private:
-	std::array<D3D12_INPUT_ELEMENT_DESC, 2> m_InputLayout;
-
 	float m_Theta = 1.5f * DirectX::XM_PI;
 	float m_Phi = DirectX::XM_PIDIV4;
 	float m_Radius = 5.0f;
@@ -53,4 +51,6 @@ private:
 	Microsoft::WRL::ComPtr<ID3DBlob> m_PsByteCode = nullptr;
 
 	std::unique_ptr<MeshGeometry> m_BoxGeo = nullptr;
+
+	std::array<D3D12_INPUT_ELEMENT_DESC, 2> m_InputLayout;
 };

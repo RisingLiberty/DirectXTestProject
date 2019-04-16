@@ -123,7 +123,7 @@ void DrawingD3DApp::Draw()
 	ThrowIfFailed(m_CommandList->Reset(m_DirectCmdListAlloc.Get(), m_Pso.Get()));
 
 	m_CommandList->RSSetViewports(1, &m_Viewport);
-	m_CommandList->RSSetScissorRects(1, &m_ScissorsRect);
+	m_CommandList->RSSetScissorRects(1, &m_ScissorRect);
 
 	// Indicate a state transition on the resource usage.
 	m_CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(this->GetCurrentBackBuffer(), D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET));
