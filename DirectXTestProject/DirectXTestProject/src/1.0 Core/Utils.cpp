@@ -9,6 +9,7 @@
 #include <fstream>
 
 using namespace Microsoft::WRL;
+using namespace DirectX;
 
 DxException::DxException(HRESULT hr, const std::wstring& functionName, const std::wstring& fileName, int lineNr):
 	m_ErrorCode(hr),
@@ -173,4 +174,16 @@ float RandF()
 float RandF(float a, float b)
 {
 	return a + RandF()*(b - a);
+}
+
+DirectX::XMMATRIX InverseTranspose(DirectX::CXMMATRIX m)
+{
+	XMMATRIX a = m;
+
+	// We clear out any translation from the matrix because we use the inverse-transpose to transform vectors
+	// and a translation only apply on points.
+	a.r[3] = XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f);
+
+	XMVECTOR det = XMMatrixDeterminant(a);
+	return XMMatrixTranspose(XMMatrixInverse(&det, a));
 }

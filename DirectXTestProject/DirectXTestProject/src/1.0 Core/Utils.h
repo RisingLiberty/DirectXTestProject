@@ -137,6 +137,22 @@ struct MeshGeometry
 struct ObjectConstants
 {
 	DirectX::XMFLOAT4X4 World = MAT_4_IDENTITY;
+
+	// Since lightning
+	DirectX::XMFLOAT4X4 TexTransform = MAT_4_IDENTITY;
+
+};
+
+#define MaxLights 16
+
+struct Light
+{
+	DirectX::XMFLOAT3 Strength; // Light color
+	float FalloffStart;	// Points/Spot light only
+	DirectX::XMFLOAT3 Direction; // Directional/Spot light only
+	float FalloffEnd;	// Point/Spot light only
+	DirectX::XMFLOAT3 Position; // Points/Spot light only
+	float SpotPower; // Spot light only
 };
 
 // Contains constant data that is fixed over a given rendering pass.
@@ -156,6 +172,15 @@ struct PassConstants
 	float FarZ = 0.0f;
 	float TotalTime = 0.0f;
 	float DeltaTime = 0.0f;
+
+	//Since lightning
+	DirectX::XMFLOAT4 AmbientLight = { 0.0f, 0.0f, 0.0f, 1.0f };
+
+	// Indices [0, NUM_DIR_LIGHTS) are directional lights;
+	// indices [NUM_DIR_LIGHTS, NUM_DIR_LIGHTS+NUM_POINT_LIGHTS) are point lights;
+	// indices [NUM_DIR_LIGHTS+NUM_POINT_LIGHTS, NUM_DIR_LIGHTS+NUM_POINT_LIGHT+NUM_SPOT_LIGHTS)
+	// are spot lights for a maximum of MaxLights per object.
+	Light Lights[MaxLights];
 };
 
 // The idea of these 2 cbuffer is to group constant based on updated frequency.
@@ -198,7 +223,38 @@ struct Vertex
 	DirectX::XMFLOAT4 Color;
 };
 
+struct LightningVertex
+{
+	DirectX::XMFLOAT3 Pos;
+	DirectX::XMFLOAT3 Normal;
+};
+
 const int gNumFrameResources = 3;
+
+struct Material
+{
+	// Unique material name for lookup
+	std::string Name;
+
+	// Index into constant buffer corresponding to this material
+	int MatCBIndex = -1;
+
+	// Index into SRV heap for diffuse texture.
+	int DiffuseSrvHeapIndex = -1;
+
+	// Dirty flag indicating the material has changed and we need to update the constant buffer.
+	// Because we have a material constant buffer for each FrameResource, we have to apply the update to each FrameResource.
+	// Thus, when we modify a material, we should set NumFramesDirty = gNumFrameResources so that each frame resource gets the update.
+	int NumFramesDirty = gNumFrameResources;
+
+	// Material constant buffer data used for shading
+	DirectX::XMFLOAT4 DiffuseAlbedo = { 1.0f, 1.0f, 1.0f, 1.0f };
+	DirectX::XMFLOAT3 FresnelR0 = { 0.01f, 0.01f, 0.01f };
+	float Roughness = 0.25f;
+	DirectX::XMFLOAT4X4 MatTransform = MAT_4_IDENTITY;
+
+	// Note: shininess = 1 - roughness
+};
 
 // Lightweight structure stores parameters to draw a shape.
 // This will vary from app-to-app.
@@ -209,6 +265,9 @@ struct RenderItem
 	// World matrix of the shape that describes the object's local space relative to the world space,
 	// which defines the position, orientation and scale of the object in the world.
 	DirectX::XMFLOAT4X4 World = MAT_4_IDENTITY;
+
+	// Since lightning Demo
+	DirectX::XMFLOAT4X4 TexTransform = MAT_4_IDENTITY;
 
 	// Dirty flag indicating the object data has changed and we need to update the constant buffer.
 	// because we have an object cbuffer for each FrameResource, we have to apply the update to each FrameResource.
@@ -222,6 +281,8 @@ struct RenderItem
 	// Note: multiple render items can share the same geometry.
 	MeshGeometry* Geometry = nullptr;
 
+	Material* Material = nullptr;
+
 	// Primitive topology.
 	D3D12_PRIMITIVE_TOPOLOGY PrimitiveType = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 
@@ -231,6 +292,17 @@ struct RenderItem
 	int BaseVertexLocation = 0;
 };
 
+struct MaterialConstants
+{
+	DirectX::XMFLOAT4 DiffuseAlbedo = { 1.0f, 1.0f, 1.0f, 1.0f };
+	DirectX::XMFLOAT3 FresnelR0 = { 0.01f, 0.01f, 0.01f };
+
+	float Roughness = 0.25f;
+
+	DirectX::XMFLOAT4X4 MatTransform = MAT_4_IDENTITY;
+};
+
 int Rand(int a, int b);
 float RandF();
 float RandF(float a, float b);
+DirectX::XMMATRIX InverseTranspose(DirectX::CXMMATRIX m);
