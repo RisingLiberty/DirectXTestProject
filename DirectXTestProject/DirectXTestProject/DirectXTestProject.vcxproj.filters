@@ -51,6 +51,15 @@
     <ClCompile Include="src\2.3 DrawingD3DAppIII\Waves.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="src\3.1 Lightning\LightningD3DApp.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\3.2 LightningWaves\LightningWavesApp.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\3.2 LightningWaves\LightningWaves.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\2.1 DrawingD3DApp\DrawingD3DApp.h">
@@ -87,6 +96,15 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\2.3 DrawingD3DAppIII\Waves.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\3.1 Lightning\LightningD3DApp.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\3.2 LightningWaves\LightningWavesApp.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\3.2 LightningWaves\LightningWaves.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

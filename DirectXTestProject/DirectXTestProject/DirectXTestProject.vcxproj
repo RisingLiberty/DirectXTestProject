@@ -138,6 +138,9 @@
     <ClCompile Include="src\1.0 Core\main.cpp" />
     <ClCompile Include="src\1.0 Core\Utils.cpp" />
     <ClCompile Include="src\2.3 DrawingD3DAppIII\Waves.cpp" />
+    <ClCompile Include="src\3.1 Lightning\LightningD3DApp.cpp" />
+    <ClCompile Include="src\3.2 LightningWaves\LightningWaves.cpp" />
+    <ClCompile Include="src\3.2 LightningWaves\LightningWavesApp.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\1.0 Core\D3DAppBase.h" />
@@ -152,6 +155,9 @@
     <ClInclude Include="src\1.0 Core\UploadBuffer.h" />
     <ClInclude Include="src\1.0 Core\Utils.h" />
     <ClInclude Include="src\2.3 DrawingD3DAppIII\Waves.h" />
+    <ClInclude Include="src\3.1 Lightning\LightningD3DApp.h" />
+    <ClInclude Include="src\3.2 LightningWaves\LightningWaves.h" />
+    <ClInclude Include="src\3.2 LightningWaves\LightningWavesApp.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
