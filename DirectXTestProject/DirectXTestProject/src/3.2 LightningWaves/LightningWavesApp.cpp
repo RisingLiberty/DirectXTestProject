@@ -137,12 +137,18 @@ void LightningWavesApp::UpdateMainPassCB(const GameTimer& gt)
 	m_MainPassCB.TotalTime = gt.GetGameTime();
 	m_MainPassCB.DeltaTime = gt.GetGameTime();
 	m_MainPassCB.AmbientLight = { 0.25f, 0.25f, 0.35f, 1.0f };
-	m_MainPassCB.Lights[0].Direction = { 0.57735f, -0.57735f, 0.57735f };
-	m_MainPassCB.Lights[0].Strength = { 0.6f, 0.6f, 0.6f };
-	m_MainPassCB.Lights[1].Direction = { -0.57735f, -0.57735f, 0.57735f };
-	m_MainPassCB.Lights[1].Strength = { 0.3f, 0.3f, 0.3f };
-	m_MainPassCB.Lights[2].Direction = { 0.0f, -0.707f, -0.707f };
-	m_MainPassCB.Lights[2].Strength = { 0.15f, 0.15f, 0.15f };
+
+	XMVECTOR lightDir = -SphericalToCartesian(1.0f, m_SunTheta, m_SunPhi);
+
+	XMStoreFloat3(&m_MainPassCB.Lights[0].Direction, lightDir);
+	m_MainPassCB.Lights[0].Strength = { 1.0f, 1.0f, 0.9f };
+
+	//m_MainPassCB.Lights[0].Direction = { 0.57735f, -0.57735f, 0.57735f };
+	//m_MainPassCB.Lights[0].Strength = { 0.6f, 0.6f, 0.6f };
+	//m_MainPassCB.Lights[1].Direction = { -0.57735f, -0.57735f, 0.57735f };
+	//m_MainPassCB.Lights[1].Strength = { 0.3f, 0.3f, 0.3f };
+	//m_MainPassCB.Lights[2].Direction = { 0.0f, -0.707f, -0.707f };
+	//m_MainPassCB.Lights[2].Strength = { 0.15f, 0.15f, 0.15f };
 
 	auto currPassCB = m_CurrentFrameResource->PassCB.get();
 	currPassCB->CopyData(0, m_MainPassCB);
