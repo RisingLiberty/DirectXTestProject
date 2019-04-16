@@ -31,7 +31,7 @@ void InitD3DApp::Draw()
 
 	//Set the viewport and scissor rect. This needs to be reset whenever the command list is reset.
 	m_CommandList->RSSetViewports(1, &m_Viewport);
-	m_CommandList->RSSetScissorRects(1, &m_ScissorsRect);
+	m_CommandList->RSSetScissorRects(1, &m_ScissorRect);
 	
 	//RenderTargetView: RTV to the resource we want to clear
 	//ColorRGBA: Defines the color to clear the render target to
