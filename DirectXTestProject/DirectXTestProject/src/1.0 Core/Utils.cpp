@@ -187,3 +187,12 @@ DirectX::XMMATRIX InverseTranspose(DirectX::CXMMATRIX m)
 	XMVECTOR det = XMMatrixDeterminant(a);
 	return XMMatrixTranspose(XMMatrixInverse(&det, a));
 }
+
+DirectX::XMVECTOR SphericalToCartesian(float radius, float theta, float phi)
+{
+	return DirectX::XMVectorSet(
+		radius*sinf(phi)*cosf(theta),
+		radius*cosf(phi),
+		radius*sinf(phi)*sinf(theta),
+		1.0f);
+}

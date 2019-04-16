@@ -306,3 +306,4 @@ int Rand(int a, int b);
 float RandF();
 float RandF(float a, float b);
 DirectX::XMMATRIX InverseTranspose(DirectX::CXMMATRIX m);
+DirectX::XMVECTOR SphericalToCartesian(float radius, float theta, float phi);
