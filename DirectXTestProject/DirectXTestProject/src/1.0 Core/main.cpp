@@ -1,6 +1,6 @@
 #include <iostream>
 
-#define DRAWING_D3D_3
+#define LIGHTNING_D3D_2
 
 #ifdef INITIALIZE_DIRECT_X
 #include "1.1 InitD3D/InitD3DApp.h"
@@ -18,10 +18,18 @@
 #include "2.3 DrawingD3DAppIII/DrawingD3DAppIII.h"
 #endif
 
+#ifdef LIGHTNING_D3D_1
+#include "3.1 Lightning/LightningD3DApp.h"
+#endif
+
+#ifdef LIGHTNING_D3D_2
+#include "3.2 LightningWaves/LightningWavesApp.h"
+#endif
+
 #include "Utils.h"
 
 #include <dxgidebug.h>
-    
+
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int showCmd)
 {
 	//Notify user if heap is corrupt
@@ -40,7 +48,29 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 	//_CrtSetBreakAlloc(...);
 #endif
 	
+#ifdef INITIALIZE_DIRECT_X
+	D3DApp* app = new InitD3DApp(hInstance);
+#endif
+
+#ifdef DRAWING_D3D_1
+	D3DApp* app = new DrawingD3DApp(hInstance);
+#endif
+
+#ifdef DRAWING_D3D_2
+	D3DApp* app = new DrawingD3DAppII(hInstance);
+#endif
+
+#ifdef DRAWING_D3D_3
 	D3DApp* app = new DrawingD3DAppIII(hInstance);
+#endif
+
+#ifdef LIGHTNING_D3D_1
+	LightningD3DApp* app = new LightningD3DApp(hInstance);
+#endif
+
+#ifdef LIGHTNING_D3D_2
+	LightningWavesApp* app = new LightningWavesApp(hInstance);
+#endif
 
 	return app->Start();
 }
