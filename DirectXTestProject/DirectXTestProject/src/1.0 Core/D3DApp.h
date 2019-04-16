@@ -135,7 +135,7 @@ protected:
 	const int HEIGHT = 720;
 
 	D3D12_VIEWPORT m_Viewport;
-	D3D12_RECT m_ScissorsRect;
+	D3D12_RECT m_ScissorRect;
 
 	//Microsoft recommends to use IDXGIFactory1 and IDXGIAdapter1 when using DirectX >= 11.0
 	Microsoft::WRL::ComPtr<IDXGIFactory1> m_pDxgiFactory;

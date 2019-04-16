@@ -892,7 +892,7 @@ void D3DApp::OnResize()
 	//} RECT;
 
 	//we set the scissor rectangle with Direct3D with the ID3D12CommandList::RSSetScissorRects method
-	m_ScissorsRect = { 0, 0, WIDTH, HEIGHT };
+	m_ScissorRect = { 0, 0, WIDTH, HEIGHT };
 	//m_CommandList->RSSetScissorRects(1, &m_ScissorsRect);
 
 	//Note: you cannot specify multiple scissor rectangles on the same render target.
