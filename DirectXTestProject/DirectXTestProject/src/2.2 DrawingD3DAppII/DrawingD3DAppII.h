@@ -23,15 +23,16 @@ protected:
 private:
 	void BuildFrameResources() override;
 	void BuildRootSignature() override;
-	void BuildDescriptorHeaps() override;
 	void BuildPsos() override;
 	void BuildShadersAndInputLayout() override;
 
 	void BuildShapeGeometry();
 	void BuildRenderItems();
 	void BuildConstantBufferViews();
+	void BuildDescriptorHeaps();
 
 	void DrawRenderItems(ID3D12GraphicsCommandList* cmdList, const std::vector<RenderItem*>& renderItems);
+
 private:
 
 	// Our application will maintain lists of render items based on how they need to be drawn.
@@ -42,6 +43,7 @@ private:
 	//std::vector<RenderItem*> m_OpaqueRenderItems;
 	//std::vector<RenderItem*> m_TransparentRenderItems;
 
+	std::array<D3D12_INPUT_ELEMENT_DESC, 2> m_InputLayout;
 
 	UINT m_PassCbvOffset;
 };

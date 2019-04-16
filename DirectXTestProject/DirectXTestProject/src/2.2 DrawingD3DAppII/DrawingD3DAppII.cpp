@@ -60,7 +60,7 @@ void DrawingD3DAppII::Draw()
 	ThrowIfFailed(m_CommandList->Reset(cmdListAlloc.Get(), m_Psos["opaque"].Get()));
 
 	m_CommandList->RSSetViewports(1, &m_Viewport);
-	m_CommandList->RSSetScissorRects(1, &m_ScissorsRect);
+	m_CommandList->RSSetScissorRects(1, &m_ScissorRect);
 
 	// Indicate a state transition on the resource usage.
 	m_CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(this->GetCurrentBackBuffer(),
