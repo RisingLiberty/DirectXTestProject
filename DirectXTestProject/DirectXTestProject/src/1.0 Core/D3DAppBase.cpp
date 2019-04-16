@@ -34,7 +34,7 @@ void D3DAppBase::Update(float dTime)
 	this->UpdateMainPassCB(m_GameTimer);
 }
 
-void D3DAppBase::Draw(float dTime)
+void D3DAppBase::Draw()
 {
 	// Nothing to implement
 }
@@ -113,25 +113,26 @@ void D3DAppBase::UpdateCamera()
 
 void D3DAppBase::UpdateObjectCBs(const GameTimer& gt)
 {
-	UploadBuffer<ObjectConstants>* currentObjectCB = m_CurrentFrameResource->ObjectCB.get();
-
-	for (const std::unique_ptr<RenderItem>& pRenderItem : m_RenderItems)
-	{
-		// Only update the cbuffer data if the constants have changed.
-		// This needs to be tracked per frame resource.
-		if (pRenderItem->NumFramesDirty > 0)
+		auto currObjectCB = m_CurrentFrameResource->ObjectCB.get();
+		for (auto& e : m_RenderItems)
 		{
-			XMMATRIX world = XMLoadFloat4x4(&pRenderItem->World);
-
-			ObjectConstants objConstants;
-			XMStoreFloat4x4(&objConstants.World, XMMatrixTranspose(world));
-
-			currentObjectCB->CopyData(pRenderItem->ObjCBIndex, objConstants);
-
-			// Next FrameResource need to be updated too
-			pRenderItem->NumFramesDirty--;
+			// Only update the cbuffer data if the constants have changed.  
+			// This needs to be tracked per frame resource.
+			if (e->NumFramesDirty > 0)
+			{
+				XMMATRIX world = XMLoadFloat4x4(&e->World);
+				XMMATRIX texTransform = XMLoadFloat4x4(&e->TexTransform);
+	
+				ObjectConstants objConstants;
+				XMStoreFloat4x4(&objConstants.World, XMMatrixTranspose(world));
+				XMStoreFloat4x4(&objConstants.TexTransform, XMMatrixTranspose(texTransform));
+	
+				currObjectCB->CopyData(e->ObjCBIndex, objConstants);
+	
+				// Next FrameResource need to be updated too.
+				e->NumFramesDirty--;
+			}
 		}
-	}
 }
 
 void D3DAppBase::UpdateMainPassCB(const GameTimer& gt)
@@ -142,7 +143,6 @@ void D3DAppBase::UpdateMainPassCB(const GameTimer& gt)
 	XMMATRIX viewProj = XMMatrixMultiply(view, proj);
 	XMMATRIX invView = XMMatrixInverse(&XMMatrixDeterminant(view), view);
 	XMMATRIX invProj = XMMatrixInverse(&XMMatrixDeterminant(proj), proj);
-
 	XMMATRIX invViewProj = XMMatrixInverse(&XMMatrixDeterminant(viewProj), viewProj);
 
 	XMStoreFloat4x4(&m_MainPassCB.View, XMMatrixTranspose(view));
@@ -157,8 +157,16 @@ void D3DAppBase::UpdateMainPassCB(const GameTimer& gt)
 	m_MainPassCB.NearZ = 1.0f;
 	m_MainPassCB.FarZ = 1000.0f;
 	m_MainPassCB.TotalTime = gt.GetGameTime();
-	m_MainPassCB.DeltaTime = gt.GetDeltaTime();
+	m_MainPassCB.DeltaTime = gt.GetGameTime();
+	m_MainPassCB.AmbientLight = { 0.25f, 0.25f, 0.35f, 1.0f };
+	m_MainPassCB.Lights[0].Direction = { 0.57735f, -0.57735f, 0.57735f };
+	m_MainPassCB.Lights[0].Strength = { 0.6f, 0.6f, 0.6f };
+	m_MainPassCB.Lights[1].Direction = { -0.57735f, -0.57735f, 0.57735f };
+	m_MainPassCB.Lights[1].Strength = { 0.3f, 0.3f, 0.3f };
+	m_MainPassCB.Lights[2].Direction = { 0.0f, -0.707f, -0.707f };
+	m_MainPassCB.Lights[2].Strength = { 0.15f, 0.15f, 0.15f };
 
-	UploadBuffer<PassConstants>* currPassCB = m_CurrentFrameResource->PassCB.get();
+	auto currPassCB = m_CurrentFrameResource->PassCB.get();
 	currPassCB->CopyData(0, m_MainPassCB);
 }
+

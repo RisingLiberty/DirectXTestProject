@@ -14,10 +14,10 @@ public:
 	D3DAppBase(HINSTANCE hInstance);
 
 protected:
-	virtual void Update(float dTime);
-	virtual void Draw(float dTime);
+	virtual void Update(float dTime) override;
+	virtual void Draw() override;
 
-	virtual void OnResize();
+	virtual void OnResize() override;
 
 	virtual void OnMouseDown(WPARAM btnState, int x, int y) override;
 	virtual void OnMouseUp(WPARAM btnState, int x, int y) override;
@@ -25,7 +25,6 @@ protected:
 
 	virtual void BuildFrameResources() = 0;
 	virtual void BuildRootSignature() = 0;
-	virtual void BuildDescriptorHeaps() = 0;
 	virtual void BuildPsos() = 0;
 	virtual void BuildShadersAndInputLayout() = 0;
 
@@ -49,7 +48,8 @@ protected:
 
 	std::unordered_map<std::string, Microsoft::WRL::ComPtr<ID3DBlob>> m_Shaders;
 	std::unordered_map<std::string, Microsoft::WRL::ComPtr<ID3D12PipelineState>> m_Psos;
-	std::array<D3D12_INPUT_ELEMENT_DESC, 2> m_InputLayout;
+
+	Microsoft::WRL::ComPtr<ID3D12PipelineState> m_OpaquePSO = nullptr;
 
 	FrameResource* m_CurrentFrameResource = nullptr;
 
@@ -66,3 +66,4 @@ protected:
 private:
 	void UpdateCamera();
 };
+
