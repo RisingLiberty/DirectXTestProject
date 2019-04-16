@@ -72,7 +72,7 @@ void DrawingD3DAppIII::Draw()
 	}
 
 	m_CommandList->RSSetViewports(1, &m_Viewport);
-	m_CommandList->RSSetScissorRects(1, &m_ScissorsRect);
+	m_CommandList->RSSetScissorRects(1, &m_ScissorRect);
 
 	// Indicate a state transition on the resource usage
 	m_CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(this->GetCurrentBackBuffer(),
@@ -430,20 +430,20 @@ void DrawingD3DAppIII::UpdateWaves(const GameTimer& gt)
 	// Update the wave simulation
 	m_Waves->Update(gt.GetDeltaTime());
 
-	UploadBuffer<Vertex>* currentWavesVB = m_CurrentFrameResource->WavesVB.get();
+	//UploadBuffer<Vertex>* currentWavesVB = m_CurrentFrameResource->WavesVB.get();
 
-	for (int i = 0; i < m_Waves->GetVertexCount(); ++i)
-	{
-		Vertex v;
+	//for (int i = 0; i < m_Waves->GetVertexCount(); ++i)
+	//{
+	//	Vertex v;
 
-		v.Pos = m_Waves->GetPosition(i);
-		v.Color = XMFLOAT4(DirectX::Colors::Blue);
+	//	v.Pos = m_Waves->GetPosition(i);
+	//	v.Color = XMFLOAT4(DirectX::Colors::Blue);
 
-		currentWavesVB->CopyData(i, v);
-	}
+	//	currentWavesVB->CopyData(i, v);
+	//}
 
-	// Set the dynamic VB of the wave renderitem to the current frame VB.
-	m_WavesRenderItem->Geometry->VertexBufferGPU = currentWavesVB->GetResource();
+	//// Set the dynamic VB of the wave renderitem to the current frame VB.
+	//m_WavesRenderItem->Geometry->VertexBufferGPU = currentWavesVB->GetResource();
 
 	// Note: we save a reference to the wave render item so that we can set its vertex buffer on the fly.
 	// We need to do this because its vertex buffer is a dynamic buffer and changes every frame.

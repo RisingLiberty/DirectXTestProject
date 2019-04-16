@@ -24,13 +24,13 @@ protected:
 	void BuildRootSignature() override;
 	void BuildShadersAndInputLayout() override;
 	void BuildFrameResources() override;
-	void BuildDescriptorHeaps() override;
 	void BuildPsos() override;
 
 private:
 	void BuildLandGeometry();
 	void BuildWavesGeometryBuffers();
 	void BuildRenderItems();
+	void BuildDescriptorHeaps();
 
 	void DrawRenderItems(ID3D12GraphicsCommandList* pCommandList, const std::vector<RenderItem*>& renderItems);
 
@@ -44,4 +44,7 @@ private:
 
 	bool m_IsWireframe;
 	RenderItem* m_WavesRenderItem = nullptr;
+
+	std::array<D3D12_INPUT_ELEMENT_DESC, 2> m_InputLayout;
+
 };
